@@ -1,0 +1,29 @@
+[en] -- RedSMURF
+BOMB_CHAT_TAG           = ^4[BOMB SITE]^1
+BOMB_CHAT_LIMIT         = You've reached the maximum number of Bomb Sites
+BOMB_CHAT_NO_BOMB       = There are no Bomb Sites available
+BOMB_CHAT_NO_DATA       = Bomb Sites data hasn't been found
+BOMB_CHAT_NO_DEFAULT    = There are no default Bomb Sites on this map
+BOMB_CHAT_SAVED         = Bomb Sites data has been saved successfully
+
+BOMB_MENU_TITLE         = \yChoose your option:
+BOMB_ROOT_CREATE        = Create Bomb Site
+BOMB_ROOT_TOGGLE        = Toggle Bomb Site
+BOMB_ROOT_REMOVE        = Remove Bomb Site
+BOMB_ROOT_SAVE          = Save Data
+BOMB_NAV_NEXT           = \yNext -- %d
+BOMB_NAV_BACK           = \rBack -- %d
+BOMB_CREATE_NEW         = Create a new Bomb Site
+BOMB_CREATE_RESTORE     = Restore Default Bomb Sites
+BOMB_ON                 = \y[ON]
+BOMB_OFF                = \r[OFF]
+BOMB_TOGGLE_CURRENT     = Toggle Bomb Site
+BOMB_TOGGLE_ALL_ON      = Activate All Bomb Sites
+BOMB_TOGGLE_ALL_OFF     = Deactivate All Sites
+BOMB_REMOVE_CURRENT     = Remove Bomb Site
+BOMB_REMOVE_ALL         = Remove All Bomb Sites
+BOMB_SCALE_HEIGHT_ADD   = Add Height
+BOMB_SCALE_HEIGHT_SUB   = Sub Height
+BOMB_SCALE_WIDTH_ADD    = Add Width
+BOMB_SCALE_WIDTH_SUB    = Sub Width
+BOMB_SCALE_PLACE        = Place Bomb Site
