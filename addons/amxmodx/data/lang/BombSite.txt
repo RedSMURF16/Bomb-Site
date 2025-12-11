@@ -1,0 +1,52 @@
+[en] -- RedSMURF
+BOMB_CHAT_TAG               = ^4[BOMB SITE]^1
+BOMB_CHAT_LIMIT             = You've reached the maximum number of Bomb Sites ^4%d
+BOMB_CHAT_NO_BOMB           = There are no Bomb Sites available
+BOMB_CHAT_NO_DATA           = Bomb Sites data hasn't been found
+BOMB_CHAT_NO_DEFAULT        = There are no default Bomb Sites on this map
+BOMB_CHAT_NO_PLACE          = You can't place Bomb Sites on this map
+BOMB_CHAT_CREATE_NEW        = Bomb Site ^1created
+BOMB_CHAT_CREATE_RESTORE    = Default Bomb Sites restored
+BOMB_CHAT_TOGGLE_CURRENT    = Bomb Site ^1is %L
+BOMB_CHAT_TOGGLE_ALL_ON     = All Bomb Sites activated
+BOMB_CHAT_TOGGLE_ALL_OFF    = All Bomb Sites deactivated
+BOMB_CHAT_REMOVE_CURRENT    = Bomb Site ^1removed
+BOMB_CHAT_REMOVE_ALL        = All Bomb Sites removed
+BOMB_CHAT_SAVE              = Bomb Sites data saved in ^4%s
+
+BOMB_CHAT_ACTIVATED         = activated
+BOMB_CHAT_DEACTIVATED       = deactivated
+
+BOMB_MENU_TITLE             = \dBomb Site - Version \y1.3
+BOMB_MENU_TITLE_PAGE        = \yPage:\r
+BOMB_ROOT_CREATE            = Create Bomb Site
+BOMB_ROOT_TOGGLE            = Toggle Bomb Site
+BOMB_ROOT_REMOVE            = Remove Bomb Site
+BOMB_ROOT_SCALE             = Scale Bomb Site
+BOMB_ROOT_SAVE              = Save Data
+
+BOMB_ON                     = \y[ON]
+BOMB_OFF                    = \r[OFF]
+BOMB_INCREASE               = \y[INCREASE]
+BOMB_DECREASE               = \r[DECREASE]
+BOMB_ADD                    = Add
+BOMB_REMOVE                 = Remove
+BOMB_NAV_NEXT               = Next
+BOMB_NAV_BACK               = Back
+
+BOMB_CREATE_NEW             = Create a new Bomb Site
+BOMB_CREATE_RESTORE         = Restore Default Bomb Sites
+
+BOMB_TOGGLE_CURRENT         = Toggle Bomb Site >> %L
+BOMB_TOGGLE_ALL_ON          = Activate All Bomb Sites
+BOMB_TOGGLE_ALL_OFF         = Deactivate All Bomb Sites
+
+BOMB_REMOVE_CURRENT         = Remove Bomb Site
+BOMB_REMOVE_ALL             = Remove All Bomb Sites
+
+BOMB_SCALE_HEIGHT           = %L Height
+BOMB_SCALE_WIDTH            = %L Width
+BOMB_SCALE_DEPTH            = %L Depth
+BOMB_SCALE_FACTOR           = Scale Factor >> %sx%.2f
+BOMB_SCALE_MODE             = Scale Mode >> %L
+BOMB_SCALE_PLACE            = Place Bomb Site
