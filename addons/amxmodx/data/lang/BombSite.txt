@@ -54,3 +54,60 @@ BOMB_SCALE_DEPTH                    = %L Depth
 BOMB_SCALE_FACTOR                   = Scale Factor >> %sx%.2f
 BOMB_SCALE_MODE                     = Scale Mode >> %L
 BOMB_SCALE_PLACE                    = Place Bomb Site
+
+[ru] -- wopox1337
+BOMB_CHAT_TAG                       = ^4[ТОЧКА ЗАКЛАДКИ]^1
+BOMB_CHAT_LIMIT                     = Достигнуто максимальное количество точек закладки: ^4%d
+BOMB_CHAT_NO_BOMB                   = Нет доступных точек закладки
+BOMB_CHAT_NO_DATA                   = Данные точек закладки не найдены
+BOMB_CHAT_NO_DEFAULT                = На этой карте отсутствуют стандартные точки закладки
+BOMB_CHAT_NO_PLACE                  = Невозможно разместить точки закладки на этой карте
+BOMB_CHAT_CREATE_NEW                = Точка закладки ^1создана
+BOMB_CHAT_CREATE_RESTORE            = Стандартные точки закладки восстановлены
+BOMB_CHAT_SWITCH_CURRENT            = ^3Точка закладки ^1сейчас %L
+BOMB_CHAT_SWITCH_ALL_ACTIVATED      = Все точки закладки активированы
+BOMB_CHAT_SWITCH_ALL_DEACTIVATED    = Все точки закладки деактивированы
+BOMB_CHAT_REMOVE_CURRENT            = ^3Точка закладки ^1удалена
+BOMB_CHAT_REMOVE_ALL                = Все точки закладки удалены
+BOMB_CHAT_SAVE                      = Данные точек закладки сохранены в ^4%s
+
+BOMB_CHAT_ACTIVATED                 = Активна
+BOMB_CHAT_DEACTIVATED               = Неактивна
+
+BOMB_NAV_NEXT                       = Далее
+BOMB_NAV_BACK                       = Назад
+BOMB_ADD                            = Добавить
+BOMB_REMOVE                         = Удалить
+BOMB_ON                             = \y[ВКЛ]
+BOMB_OFF                            = \r[ВЫКЛ]
+BOMB_ACTIVATED                      = \y[АКТИВНА]
+BOMB_DEACTIVATED                    = \r[НЕАКТИВНА]
+BOMB_INCREASE                       = \y[УВЕЛИЧИТЬ]
+BOMB_DECREASE                       = \r[УМЕНЬШИТЬ]
+
+BOMB_MENU_TITLE                     = \dТочка закладки - Версия \y%s
+
+BOMB_ROOT_CREATE                    = Создать точку закладки
+BOMB_ROOT_SWITCH                    = Переключить точку закладки
+BOMB_ROOT_REMOVE                    = Удалить точку закладки
+BOMB_ROOT_SAVE                      = Сохранить данные
+BOMB_ROOT_NOCLIP                    = Переключить noclip %L
+BOMB_ROOT_GODMODE                   = Переключить godmode %L
+BOMB_ROOT_SCALE                     = Настроить размеры
+
+BOMB_CREATE_NEW                     = Создать новую точку закладки
+BOMB_CREATE_RESTORE                 = Восстановить стандартные точки закладки
+
+BOMB_SWITCH_CURRENT                 = Переключить точку закладки >> %L
+BOMB_SWITCH_ALL_ACTIVATE            = Активировать все точки закладки
+BOMB_SWITCH_ALL_DEACTIVATE          = Деактивировать все точки закладки
+
+BOMB_REMOVE_CURRENT                 = Удалить точку закладки
+BOMB_REMOVE_ALL                     = Удалить все точки закладки
+
+BOMB_SCALE_HEIGHT                   = %L Высота
+BOMB_SCALE_WIDTH                    = %L Ширина
+BOMB_SCALE_DEPTH                    = %L Глубина
+BOMB_SCALE_FACTOR                   = Коэффициент масштаба >> %sx%.2f
+BOMB_SCALE_MODE                     = Режим масштабирования >> %L
+BOMB_SCALE_PLACE                    = Разместить точку закладки
