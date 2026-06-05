@@ -719,11 +719,13 @@ public menuHandlerRoot(id, menu, item)
             if ( g_iBomb >= MAX_ENT )
             {
                 client_print_color(id, id, "%L %L", id, "BOMB_CHAT_TAG", id, "BOMB_CHAT_LIMIT", MAX_ENT)
+                bombSound(id, SOUND_MENU_REMOVE)
             }
             else if ( !g_eSettings[SETTING_BOMB_MAP]
             && !g_eSettings[SETTING_BOMB_ANYWHERE] )
             {
                 client_print_color(id, id, "%L %L", id, "BOMB_CHAT_TAG", id, "BOMB_CHAT_NO_PLACE")
+                bombSound(id, SOUND_MENU_REMOVE)
             }
             else
             {
@@ -736,6 +738,7 @@ public menuHandlerRoot(id, menu, item)
             if ( !g_iBomb )
             {
                 client_print_color(id, id, "%L %L", id, "BOMB_CHAT_TAG", id, "BOMB_CHAT_NO_BOMB")
+                bombSound(id, SOUND_MENU_REMOVE)
             }
             else
             {
@@ -748,6 +751,7 @@ public menuHandlerRoot(id, menu, item)
             if ( !g_iBomb )
             {
                 client_print_color(id, id, "%L %L", id, "BOMB_CHAT_TAG", id, "BOMB_CHAT_NO_BOMB")
+                bombSound(id, SOUND_MENU_REMOVE)
             }
             else
             {
@@ -802,6 +806,7 @@ public menuHandlerCreate(id, menu, item)
             if ( !g_iBombDefault )
             {
                 client_print_color(id, id, "%L %L", id, "BOMB_CHAT_TAG", id, "BOMB_CHAT_NO_DEFAULT")
+                bombSound(id, SOUND_MENU_REMOVE)
             }
             else
             {
@@ -1305,8 +1310,6 @@ public saveData(id)
     fclose(iFile)
 
     bombSound(id, SOUND_MENU_NAV)
-    bombMenu(id, MENU_ROOT)
-
     return PLUGIN_HANDLED
 }
 

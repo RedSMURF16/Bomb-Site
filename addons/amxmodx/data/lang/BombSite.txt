@@ -28,9 +28,6 @@ BOMB_DEACTIVATED                    = \r[DEACTIVATED]
 BOMB_INCREASE                       = \y[INCREASE]
 BOMB_DECREASE                       = \r[DECREASE]
 
-BOMB_REMOVE_CURRENT                 = Remove Bomb Site >> \y%s
-BOMB_REMOVE_ALL                     = Remove all Bomb Sites
-
 BOMB_MENU_TITLE                     = \dBomb Site - Version \y%s
 
 BOMB_ROOT_CREATE                    = Create Bomb Site
