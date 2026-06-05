@@ -30,6 +30,7 @@
 *             Radar visibility can be configured for Terrorists, CTs, both teams or disabled.
 *       v1.3: Added independent axis scaling, mode toggle (Add/Remove), and factor control for precise box resizing,
 *             Added noclip for players placing Bomb Sites for easier positioning
+*       v1.4: Bug fixes and config improvements.
 *
 */
 
