@@ -31,6 +31,7 @@
 *       v1.3: Added independent axis scaling, mode toggle (Add/Remove), and factor control for precise box resizing,
 *             Added noclip for players placing Bomb Sites for easier positioning
 *       v1.4: Bug fixes and config improvements.
+*       v1.5: Added per-Bomb Site configuration.
 *
 */
 
@@ -71,28 +72,41 @@
 #define BOMB_KEY            8241
 #define BOMB_ARRAY_ITEM     pev_iuser1
 
-new const PLUGIN_VERSION[]       = "1.4"
+new const PLUGIN_VERSION[]       = "1.5"
 new const Float:DELAY_ON_CONNECT = 1.0
 new const ERROR_FILE[]           = "BombSite_ERRORS.log"
 
 enum
 {
     SECTION_NONE,
-    SECTION_MAIN_SETTINGS
+    SECTION_MAIN_SETTINGS,
+    SECTION_BOMB
 }
 
 enum
 {
-    FLAG_DEFAULT = (1 << 0),
-    FLAG_SELECT  = (1 << 1)
+    FLAG_RADAR          = (1 << 0),
+    FLAG_ICON           = (1 << 1),
+    FLAG_ACTIVE_DELAY   = (1 << 3),
+
+    FLAG_DEFAULT        = (1 << 3),
+    FLAG_SELECT         = (1 << 4),
+    FLAG_ACTIVE         = (1 << 5)
 }
 
 enum
 {
-    RADAR_NONE,
-    RADAR_T,
-    RADAR_CT,
-    RADAR_BOTH
+    STATUS_DEFAULT,
+    STATUS_FORCE_ENABLE,
+    STATUS_FORCE_DISABLE
+}
+
+enum
+{
+    TEAM_NONE,
+    TEAM_T,
+    TEAM_CT,
+    TEAM_BOTH
 }
 
 enum
@@ -106,16 +120,26 @@ enum
 {
     SOUND_MENU_NAV,
     SOUND_MENU_REMOVE,
-    SOUND_MENU_ALERT
+    SOUND_MENU_ALERT,
+
+    SOUND_ENABLED,
+    SOUND_DISABLED
 }
 
 enum _:MAIN_SETTINGS
 {
+    SETTING_DEFAULT_FLAGS,
+    SETTING_DEFAULT_RADAR,
+    Float:SETTING_DEFAULT_ACTIVE_CHANCE,
+    Float:SETTING_DEFAULT_ACTIVE_DELAY[2],
+    Float:SETTING_DEFAULT_ACTIVE_DURATION[2],
+    Float:SETTING_DEFAULT_ACTIVE_COOLDOWN[2],
+    SETTING_DEFAULT_ICON[MAX_RESOURCE_PATH_LENGTH],
+    Float:SETTING_DEFAULT_ICON_SCALE,
+    SETTING_DEFAULT_ICON_ALPHA,
+
     bool:SETTING_BOMB_LOAD,
     bool:SETTING_BOMB_ANYWHERE,
-    bool:SETTING_BOMB_DEFAULT,
-    bool:SETTING_BOMB_MAP,
-    SETTING_BOMB_RADAR,
     Float:SETTING_OFFSET_BASE,
     Float:SETTING_OFFSET[2],
     Float:SETTING_OFFSET_STEP,
@@ -130,15 +154,12 @@ enum _:MAIN_SETTINGS
     SETTING_SOUND_MENU_NAV[MAX_RESOURCE_PATH_LENGTH],
     SETTING_SOUND_MENU_REMOVE[MAX_RESOURCE_PATH_LENGTH],
     SETTING_SOUND_MENU_ALERT[MAX_RESOURCE_PATH_LENGTH],
-    SETTING_ICON[MAX_RESOURCE_PATH_LENGTH],
-    bool:SETTING_ICON_SHOW,
-    Float:SETTING_ICON_SCALE,
-    SETTING_ICON_ALPHA,
-
-    SETTING_BEAM_WIDTH[2],
-    SETTING_BEAM_ALPHA[2],
+    Array:SETTING_SOUND_SUITCHARGE,
+    Array:SETTING_SOUND_BLIP2,
 
     SETTING_BEAM,
+    SETTING_BEAM_WIDTH,
+    SETTING_BEAM_ALPHA,
     SETTING_COLOR_ACTIVE[3],
     SETTING_COLOR_INACTIVE[3]
 }
@@ -146,24 +167,33 @@ enum _:MAIN_SETTINGS
 enum _:BOMB
 {
     BOMB_ID,
+    BOMB_ITEM,
     BOMB_FLAGS,
+    BOMB_STATUS,
+    BOMB_RADAR,
+    Float:BOMB_ACTIVE_CHANCE,
+    Float:BOMB_ACTIVE_DELAY[2],
+    Float:BOMB_ACTIVE_DURATION[2],
+    Float:BOMB_ACTIVE_COOLDOWN[2],
+
     BOMB_ICON,
-    bool:BOMB_ACTIVE,
-    Float:BOMB_SCALE_X,
-    Float:BOMB_SCALE_Y,
-    Float:BOMB_SCALE_Z,
+    Float:BOMB_ICON_SCALE,
+    BOMB_ICON_ALPHA,
+    BOMB_ICON_SPRITE[MAX_RESOURCE_PATH_LENGTH],
+    BOMB_NAME[MAX_VALUE_LENGTH],
+
+    Float:BOMB_SCALE[3],
     Float:BOMB_ORIGIN[3],
     Float:BOMB_CORNERS[24],
     Float:BOMB_MINS[3],
     Float:BOMB_MAXS[3],
-    Float:BOMB_NEXT_RADAR
+    Float:BOMB_NEXT_RADAR,
+    Float:BOMB_NEXT_ENABLE,
+    Float:BOMB_NEXT_DISABLE
 }
 
 enum _:PLAYER_DATA
 {
-    PDATA_NAME[MAX_VALUE_LENGTH],
-    PDATA_AUTHID[MAX_AUTHID_LENGTH],
-    PDATA_ADMIN_FLAGS,
     PDATA_BOMB_GHOST,
     PDATA_BOMB_MENU,
     bool:PDATA_SCALE_UP,
@@ -176,7 +206,7 @@ enum
 {
     MENU_ROOT,
     MENU_CREATE,
-    MENU_SWITCH,
+    MENU_STATUS,
     MENU_REMOVE,
     MENU_SCALE
 }
@@ -184,7 +214,7 @@ enum
 enum
 {
     ROOT_CREATE,
-    ROOT_SWITCH,
+    ROOT_STATUS,
     ROOT_REMOVE,
     ROOT_SAVE,
 
@@ -194,18 +224,13 @@ enum
 
 enum
 {
-    CREATE_NEW,
-    CREATE_RESTORE
-}
+    STATUS_NEXT,
+    STATUS_BACK,
 
-enum
-{
-    SWITCH_NEXT,
-    SWITCH_BACK,
-
-    SWITCH_CURRENT = 3,
-    SWITCH_ALL_DEACTIVATE,
-    SWITCH_ALL_ACTIVATE
+    STATUS_CURRENT = 3,
+    STATUS_ALL_ENABLE,
+    STATUS_ALL_DISABLE,
+    STATUS_ALL_DEFAULT
 }
 
 enum
@@ -232,7 +257,7 @@ new g_szMenuHandler[][] =
 {
     "menuHandlerRoot",
     "menuHandlerCreate",
-    "menuHandlerSwitch",
+    "menuHandlerStatus",
     "menuHandlerRemove",
     "menuHandlerScale"
 }
@@ -241,14 +266,18 @@ new Float:g_fScaleFactor[] = {5.0, 10.0, 20.0, 30.0, 45.0, 60.0}
 new g_szCN[] = "bombsite"
 
 new Array:g_aBomb,
-    Array:g_aBombDefault,
+    Array:g_aBombConfig,
     g_eSettings[MAIN_SETTINGS],
     g_ePlayerData[MAX_PLAYERS + 1][PLAYER_DATA],
     bool:g_bFileWasRead = false,
-    g_iBomb,
-    g_iBombDefault,
+    bool:g_bBombMap,
+    g_iBomb, g_iBombConfig,
     g_iBombDrop, g_iHostagePos, g_iHostageK, g_iStatusIcon, g_iPlayerBomb,
     g_iMaxPlayers
+
+new g_szStatus[][] = {"BOMB_DEFAULT", "BOMB_ENABLED", "BOMB_DISABLED"}
+new g_szStatusChat[][] = {"BOMB_CHAT_DEFAULT", "BOMB_CHAT_ENABLED", "BOMB_CHAT_DISABLED"}
+new g_szStatusColor[][] = {"\d", "\r", "\y"}
 
 public plugin_init()
 {
@@ -279,6 +308,7 @@ public plugin_init()
     g_iStatusIcon = get_user_msgid("StatusIcon")
     g_iMaxPlayers = get_maxplayers()
 
+    register_logevent("eventRoundStart", 2, "1=Round_Start")
     set_task(g_eSettings[SETTING_GHOST_FREQ], "bombTask", .flags = "b")
     bombInit()
 }
@@ -286,7 +316,9 @@ public plugin_init()
 public plugin_precache()
 {
     g_aBomb = ArrayCreate(BOMB)
-    g_aBombDefault = ArrayCreate(BOMB)
+    g_aBombConfig = ArrayCreate(BOMB)
+    g_eSettings[SETTING_SOUND_SUITCHARGE] = ArrayCreate(MAX_RESOURCE_PATH_LENGTH)
+    g_eSettings[SETTING_SOUND_BLIP2] = ArrayCreate(MAX_RESOURCE_PATH_LENGTH)
 
     ReadFile()
 }
@@ -294,7 +326,9 @@ public plugin_precache()
 public plugin_end()
 {
     ArrayDestroy(g_aBomb)
-    ArrayDestroy(g_aBombDefault)
+    ArrayDestroy(g_aBombConfig)
+    ArrayDestroy(g_eSettings[SETTING_SOUND_SUITCHARGE])
+    ArrayDestroy(g_eSettings[SETTING_SOUND_BLIP2])
 }
 
 public cmdMenu(id, iLevel, iCmd)
@@ -336,6 +370,47 @@ public client_command(id)
     return PLUGIN_CONTINUE
 }
 
+public eventRoundStart()
+{
+    if ( !g_iBomb )
+        return PLUGIN_HANDLED
+
+    new eBomb[BOMB], Float:fCurrentTime
+    fCurrentTime = get_gametime()
+
+    for ( new i = 0; i < g_iBomb; i ++ )
+    {
+        ArrayGetArray(g_aBomb, i, eBomb)
+
+        if ( eBomb[BOMB_STATUS] != STATUS_DEFAULT )
+            continue
+
+        bombReset(eBomb)
+
+        if ( eBomb[BOMB_ACTIVE_CHANCE] >= random_float(0.0, 1.0) )
+        {
+            if ( eBomb[BOMB_FLAGS] & FLAG_ACTIVE_DELAY )
+            {
+                eBomb[BOMB_NEXT_ENABLE] = fCurrentTime + random_float(eBomb[BOMB_ACTIVE_DELAY][0], eBomb[BOMB_ACTIVE_DELAY][1])
+
+                if ( eBomb[BOMB_FLAGS] & FLAG_ICON )
+                    iconColor(eBomb[BOMB_ICON], false, eBomb[BOMB_ICON_ALPHA])
+            }
+            else
+            {
+                eBomb[BOMB_FLAGS] |= FLAG_ACTIVE
+
+                if ( eBomb[BOMB_FLAGS] & FLAG_ICON )
+                    iconColor(eBomb[BOMB_ICON], true, eBomb[BOMB_ICON_ALPHA])
+            }
+        }
+
+        ArraySetArray(g_aBomb, i, eBomb)
+    }
+
+    return PLUGIN_HANDLED
+}
+
 public eventStatusIcon(id)
 {
     iconDraw(id, isBombActive(id) ? ICON_FLASH : ICON_DRAW)
@@ -350,6 +425,10 @@ stock ReadFile()
             if ( is_user_connected(id))
                 UpdateData(id)
 
+        ArrayClear(g_eSettings[SETTING_SOUND_SUITCHARGE])
+        ArrayClear(g_eSettings[SETTING_SOUND_BLIP2])
+        ArrayClear(g_aBombConfig)
+        g_iBombConfig = 0
     }
 
     new g_szFileName[MAX_RESOURCE_PATH_LENGTH]
@@ -367,7 +446,7 @@ stock ReadFile()
     new szData[MAX_FILE_CELL_SIZE],
         szKey[MAX_VALUE_LENGTH],
         szValue[MAX_RESOURCE_PATH_LENGTH],
-        iSection = SECTION_NONE, iLine, iEnt, iPos
+        eBomb[BOMB], iSection = SECTION_NONE, iLine, iEnt, iPos
 
     while( !feof(iFile) )
     {
@@ -393,6 +472,29 @@ stock ReadFile()
                     {
                         iSection = SECTION_MAIN_SETTINGS
                     }
+                    else
+                        {
+                            if ( g_iBombConfig )
+                                ArrayPushArray(g_aBombConfig, eBomb)
+
+                            copy(eBomb[BOMB_NAME], charsmax(eBomb[BOMB_NAME]), szData)
+                            copy(eBomb[BOMB_ICON_SPRITE], charsmax(eBomb[BOMB_ICON_SPRITE]), g_eSettings[SETTING_DEFAULT_ICON])
+                            eBomb[BOMB_FLAGS]               = g_eSettings[SETTING_DEFAULT_FLAGS]
+                            eBomb[BOMB_RADAR]               = g_eSettings[SETTING_DEFAULT_RADAR]
+                            eBomb[BOMB_ACTIVE_CHANCE]       = g_eSettings[SETTING_DEFAULT_ACTIVE_CHANCE]
+                            eBomb[BOMB_ACTIVE_DELAY][0]     = g_eSettings[SETTING_DEFAULT_ACTIVE_DELAY][0]
+                            eBomb[BOMB_ACTIVE_DELAY][1]     = g_eSettings[SETTING_DEFAULT_ACTIVE_DELAY][1]
+                            eBomb[BOMB_ACTIVE_DURATION][0]  = g_eSettings[SETTING_DEFAULT_ACTIVE_DURATION][0]
+                            eBomb[BOMB_ACTIVE_DURATION][1]  = g_eSettings[SETTING_DEFAULT_ACTIVE_DURATION][1]
+                            eBomb[BOMB_ACTIVE_COOLDOWN][0]  = g_eSettings[SETTING_DEFAULT_ACTIVE_COOLDOWN][0]
+                            eBomb[BOMB_ACTIVE_COOLDOWN][1]  = g_eSettings[SETTING_DEFAULT_ACTIVE_COOLDOWN][1]
+
+                            eBomb[BOMB_ICON_SCALE]          = g_eSettings[SETTING_DEFAULT_ICON_SCALE]
+                            eBomb[BOMB_ICON_ALPHA]          = g_eSettings[SETTING_DEFAULT_ICON_ALPHA]
+
+                            iSection = SECTION_BOMB
+                            g_iBombConfig ++
+                        }
                 }
                 else
                 {
@@ -418,21 +520,58 @@ stock ReadFile()
                     }
                     case SECTION_MAIN_SETTINGS:
                     {
-                        if ( equali(szKey, "SETTING_BOMB_LOAD") )
+                        if ( equali(szKey, "SETTING_DEFAULT_FLAGS") )
+                        {
+                            g_eSettings[SETTING_DEFAULT_FLAGS] = read_flags(szValue)
+                            g_eSettings[SETTING_DEFAULT_FLAGS] &= 7
+                        }
+                        else if ( equali(szKey, "SETTING_DEFAULT_RADAR") )
+                        {
+                            g_eSettings[SETTING_DEFAULT_RADAR] = str_to_num(szValue)
+                            g_eSettings[SETTING_DEFAULT_RADAR] = clamp(g_eSettings[SETTING_DEFAULT_RADAR], TEAM_NONE, TEAM_BOTH)
+                        }
+                        else if ( equali(szKey, "SETTING_DEFAULT_ACTIVE_CHANCE") )
+                        {
+                            g_eSettings[SETTING_DEFAULT_ACTIVE_CHANCE] = str_to_float(szValue)
+                        }
+                        else if ( equali(szKey, "SETTING_DEFAULT_ACTIVE_DELAY") )
+                        {
+                            strtok(szValue, szKey, charsmax(szKey), szValue, charsmax(szValue), ' ')
+                            g_eSettings[SETTING_DEFAULT_ACTIVE_DELAY][0] = str_to_float(szKey)
+                            g_eSettings[SETTING_DEFAULT_ACTIVE_DELAY][1] = str_to_float(szValue)
+                        }
+                        else if ( equali(szKey, "SETTING_DEFAULT_ACTIVE_DURATION") )
+                        {
+                            strtok(szValue, szKey, charsmax(szKey), szValue, charsmax(szValue), ' ')
+                            g_eSettings[SETTING_DEFAULT_ACTIVE_DURATION][0] = str_to_float(szKey)
+                            g_eSettings[SETTING_DEFAULT_ACTIVE_DURATION][1] = str_to_float(szValue)
+                        }
+                        else if ( equali(szKey, "SETTING_DEFAULT_ACTIVE_COOLDOWN") )
+                        {
+                            strtok(szValue, szKey, charsmax(szKey), szValue, charsmax(szValue), ' ')
+                            g_eSettings[SETTING_DEFAULT_ACTIVE_COOLDOWN][0] = str_to_float(szKey)
+                            g_eSettings[SETTING_DEFAULT_ACTIVE_COOLDOWN][1] = str_to_float(szValue)
+                        }
+                        else if ( equali(szKey, "SETTING_DEFAULT_ICON") )
+                        {
+                            copy(g_eSettings[SETTING_DEFAULT_ICON], charsmax(g_eSettings[SETTING_DEFAULT_ICON]), szValue)
+                            if ( !g_bFileWasRead ) precache_model(szValue)
+                        }
+                        else if ( equali(szKey, "SETTING_DEFAULT_ICON_SCALE") )
+                        {
+                            g_eSettings[SETTING_DEFAULT_ICON_SCALE] = str_to_float(szValue)
+                        }
+                        else if ( equali(szKey, "SETTING_DEFAULT_ICON_ALPHA") )
+                        {
+                            g_eSettings[SETTING_DEFAULT_ICON_ALPHA] = str_to_num(szValue)
+                        }
+                        else if ( equali(szKey, "SETTING_BOMB_LOAD") )
                         {
                             g_eSettings[SETTING_BOMB_LOAD] = bool:str_to_num(szValue)
                         }
                         else if ( equali(szKey, "SETTING_BOMB_ANYWHERE") )
                         {
                             g_eSettings[SETTING_BOMB_ANYWHERE] = bool:str_to_num(szValue)
-                        }
-                        else if ( equali(szKey, "SETTING_BOMB_DEFAULT") )
-                        {
-                            g_eSettings[SETTING_BOMB_DEFAULT] = bool:str_to_num(szValue)
-                        }
-                        else if ( equali(szKey, "SETTING_BOMB_RADAR") )
-                        {
-                            g_eSettings[SETTING_BOMB_RADAR] = str_to_num(szValue)
                         }
                         else if ( equali(szKey, "SETTING_OFFSET_BASE") )
                         {
@@ -493,38 +632,27 @@ stock ReadFile()
                             copy(g_eSettings[SETTING_SOUND_MENU_ALERT], charsmax(g_eSettings[SETTING_SOUND_MENU_ALERT]), szValue)
                             if ( !g_bFileWasRead ) precache_sound(szValue)
                         }
-                        else if ( equali(szKey, "SETTING_ICON") )
+                        else if ( equali(szKey, "SETTING_SOUND_SUITCHARGE") )
                         {
-                            copy(g_eSettings[SETTING_ICON], charsmax(g_eSettings[SETTING_ICON]), szValue)
-                            if ( !g_bFileWasRead ) precache_model(szValue)
+                            ArrayPushString(g_eSettings[SETTING_SOUND_SUITCHARGE], szValue)
+                            if ( !g_bFileWasRead ) precache_sound(szValue)
                         }
-                        else if ( equali(szKey, "SETTING_ICON_SHOW") )
+                        else if ( equali(szKey, "SETTING_SOUND_BLIP2") )
                         {
-                            g_eSettings[SETTING_ICON_SHOW] = bool:str_to_num(szValue)
-                        }
-                        else if ( equali(szKey, "SETTING_ICON_SCALE") )
-                        {
-                            g_eSettings[SETTING_ICON_SCALE] = str_to_float(szValue)
-                        }
-                        else if ( equali(szKey, "SETTING_ICON_ALPHA") )
-                        {
-                            g_eSettings[SETTING_ICON_ALPHA] = str_to_num(szValue)
-                        }
-                        else if ( equali(szKey, "SETTING_BEAM_WIDTH") )
-                        {
-                            strtok(szValue, szKey, charsmax(szKey), szValue, charsmax(szValue), ' ')
-                            g_eSettings[SETTING_BEAM_WIDTH][0] = str_to_num(szKey)
-                            g_eSettings[SETTING_BEAM_WIDTH][1] = str_to_num(szValue)
-                        }
-                        else if ( equali(szKey, "SETTING_BEAM_ALPHA") )
-                        {
-                            strtok(szValue, szKey, charsmax(szKey), szValue, charsmax(szValue), ' ')
-                            g_eSettings[SETTING_BEAM_ALPHA][0] = str_to_num(szKey)
-                            g_eSettings[SETTING_BEAM_ALPHA][1] = str_to_num(szValue)
+                            ArrayPushString(g_eSettings[SETTING_SOUND_BLIP2], szValue)
+                            if ( !g_bFileWasRead ) precache_sound(szValue)
                         }
                         else if ( equali(szKey, "SETTING_BEAM") )
                         {
                             if ( !g_bFileWasRead ) g_eSettings[SETTING_BEAM] = precache_model(szValue)
+                        }
+                        else if ( equali(szKey, "SETTING_BEAM_WIDTH") )
+                        {
+                            g_eSettings[SETTING_BEAM_WIDTH] = str_to_num(szValue)
+                        }
+                        else if ( equali(szKey, "SETTING_BEAM_ALPHA") )
+                        {
+                            g_eSettings[SETTING_BEAM_ALPHA] = str_to_num(szValue)
                         }
                         else if ( equali(szKey, "SETTING_COLOR_ACTIVE") )
                         {
@@ -545,10 +673,75 @@ stock ReadFile()
                             g_eSettings[SETTING_COLOR_INACTIVE][2] = str_to_num(szValue)
                         }
                     }
+                    case SECTION_BOMB:
+                    {
+                        if ( equali(szKey, "BOMB_FLAGS") )
+                        {
+                            eBomb[BOMB_FLAGS] = read_flags(szValue)
+                            eBomb[BOMB_FLAGS] &= 7
+                        }
+                        else if ( equali(szKey, "BOMB_RADAR") )
+                        {
+                            eBomb[BOMB_RADAR] = str_to_num(szValue)
+                            eBomb[BOMB_RADAR] = clamp(eBomb[BOMB_RADAR], TEAM_NONE, TEAM_BOTH)
+                        }
+                        else if ( equali(szKey, "BOMB_ACTIVE_CHANCE") )
+                        {
+                            eBomb[BOMB_ACTIVE_CHANCE] = str_to_float(szValue)
+                            if ( eBomb[BOMB_ACTIVE_CHANCE] < 0.0 ) eBomb[BOMB_ACTIVE_CHANCE] = g_eSettings[SETTING_DEFAULT_ACTIVE_CHANCE]
+                        }
+                        else if ( equali(szKey, "BOMB_ACTIVE_DELAY") )
+                        {
+                            strtok(szValue, szKey, charsmax(szKey), szValue, charsmax(szValue), ' ')
+                            eBomb[BOMB_ACTIVE_DELAY][0] = str_to_float(szKey)
+                            eBomb[BOMB_ACTIVE_DELAY][1] = str_to_float(szValue)
+
+                            if ( eBomb[BOMB_ACTIVE_DELAY][0] < 0.0 ) eBomb[BOMB_ACTIVE_DELAY][0] = g_eSettings[SETTING_DEFAULT_ACTIVE_DELAY][0]
+                            if ( eBomb[BOMB_ACTIVE_DELAY][1] < 0.0 ) eBomb[BOMB_ACTIVE_DELAY][1] = g_eSettings[SETTING_DEFAULT_ACTIVE_DELAY][1]
+                        }
+                        else if ( equali(szKey, "BOMB_ACTIVE_DURATION") )
+                        {
+                            strtok(szValue, szKey, charsmax(szKey), szValue, charsmax(szValue), ' ')
+                            eBomb[BOMB_ACTIVE_DURATION][0] = str_to_float(szKey)
+                            eBomb[BOMB_ACTIVE_DURATION][1] = str_to_float(szValue)
+
+                            if ( eBomb[BOMB_ACTIVE_DURATION][0] < 0.0 ) eBomb[BOMB_ACTIVE_DURATION][0] = g_eSettings[SETTING_DEFAULT_ACTIVE_DURATION][0]
+                            if ( eBomb[BOMB_ACTIVE_DURATION][1] < 0.0 ) eBomb[BOMB_ACTIVE_DURATION][1] = g_eSettings[SETTING_DEFAULT_ACTIVE_DURATION][1]
+                        }
+                        else if ( equali(szKey, "BOMB_ACTIVE_COOLDOWN") )
+                        {
+                            strtok(szValue, szKey, charsmax(szKey), szValue, charsmax(szValue), ' ')
+                            eBomb[BOMB_ACTIVE_COOLDOWN][0] = str_to_float(szKey)
+                            eBomb[BOMB_ACTIVE_COOLDOWN][1] = str_to_float(szValue)
+
+                            if ( eBomb[BOMB_ACTIVE_COOLDOWN][0] < 0.0 ) eBomb[BOMB_ACTIVE_COOLDOWN][0] = g_eSettings[SETTING_DEFAULT_ACTIVE_COOLDOWN][0]
+                            if ( eBomb[BOMB_ACTIVE_COOLDOWN][1] < 0.0 ) eBomb[BOMB_ACTIVE_COOLDOWN][1] = g_eSettings[SETTING_DEFAULT_ACTIVE_COOLDOWN][1]
+                        }
+                        else if ( equali(szKey, "BOMB_ICON_SCALE") )
+                        {
+                            eBomb[BOMB_ICON_SCALE] = str_to_float(szValue)
+                            if ( eBomb[BOMB_ICON_SCALE] < 0.0 ) eBomb[BOMB_ICON_SCALE] = g_eSettings[SETTING_DEFAULT_ICON_SCALE]
+                        }
+                        else if ( equali(szKey, "BOMB_ICON_ALPHA") )
+                        {
+                            eBomb[BOMB_ICON_ALPHA] = str_to_num(szValue)
+                            if ( eBomb[BOMB_ICON_ALPHA] < 0 ) eBomb[BOMB_ICON_ALPHA] = g_eSettings[SETTING_DEFAULT_ICON_ALPHA]
+                        }
+                        else if ( equali(szKey, "BOMB_ICON_SPRITE") )
+                        {
+                            copy(eBomb[BOMB_ICON_SPRITE], charsmax(eBomb[BOMB_ICON_SPRITE]), szValue)
+                            if ( !g_bFileWasRead ) precache_model(szValue)
+                        }
+                    }
                 }
             }
         }
     }
+
+    if ( g_iBombConfig )
+        ArrayPushArray(g_aBombConfig, eBomb)
+    else
+        set_fail_state("No Bomb Sites were found in the configuration file.")
 
     if ( !g_bFileWasRead )
     {
@@ -567,9 +760,6 @@ stock ReadFile()
 
 public client_authorized(id)
 {
-    get_user_name(id, g_ePlayerData[id][PDATA_NAME], charsmax(g_ePlayerData[][PDATA_NAME]))
-    get_user_authid(id, g_ePlayerData[id][PDATA_AUTHID], charsmax(g_ePlayerData[][PDATA_AUTHID]))
-
     set_task(DELAY_ON_CONNECT, "UpdateData", id)
 }
 
@@ -585,60 +775,16 @@ public client_disconnected(id)
 
     g_ePlayerData[id][PDATA_BOMB_GHOST]  = 0
     g_ePlayerData[id][PDATA_BOMB_MENU]   = 0
-    g_ePlayerData[id][PDATA_ADMIN_FLAGS] = 0
 }
 
 public UpdateData(id)
 {
-    get_user_name(id, g_ePlayerData[id][PDATA_NAME], charsmax(g_ePlayerData[][PDATA_NAME]))
-    g_ePlayerData[id][PDATA_ADMIN_FLAGS] = get_user_flags(id)
     g_ePlayerData[id][PDATA_OFFSET] = g_eSettings[SETTING_OFFSET_BASE]
 }
 
 public bombInit()
 {
-    new Float:fOrigin[3],
-        Float:fMins[3], Float:fMaxs[3], Float:fCorners[8][3],
-        eBomb[BOMB], iEnt = -1
-
-    g_eSettings[SETTING_BOMB_MAP] = isBombMap()
-
-    if ( g_eSettings[SETTING_BOMB_MAP]
-    && g_eSettings[SETTING_BOMB_DEFAULT] )
-    {
-        while ( (iEnt = engfunc(EngFunc_FindEntityByString, iEnt, "classname", "func_bomb_target")) )
-        {
-            if ( !pev_valid(iEnt) )
-                continue
-
-            pev(iEnt, pev_absmin, fMins)
-            pev(iEnt, pev_absmax, fMaxs)
-            xs_vec_add(fMins, fMaxs, fOrigin)
-            xs_vec_mul_scalar(fOrigin, 0.5, fOrigin)
-
-            for ( new i = 0; i < 8; i ++ )
-            {
-                fCorners[i][0] = (i & 1) ? fMaxs[0] : fMins[0]
-                fCorners[i][1] = (i & 2) ? fMaxs[1] : fMins[1]
-                fCorners[i][2] = (i & 4) ? fMaxs[2] : fMins[2]
-            }
-
-            eBomb[BOMB_ID] = iEnt
-            eBomb[BOMB_ACTIVE] = true
-            eBomb[BOMB_FLAGS] |= FLAG_DEFAULT
-            xs_vec_copy(fOrigin, eBomb[BOMB_ORIGIN])
-            xs_vec_copy(fMins, eBomb[BOMB_MINS])
-            xs_vec_copy(fMaxs, eBomb[BOMB_MAXS])
-
-            for ( new i = 0; i < 8; i ++ )
-                xs_vec_copy(fCorners[i], eBomb[BOMB_CORNERS][i * 3])
-
-            ArrayPushArray(g_aBomb, eBomb)
-            ArrayPushArray(g_aBombDefault, eBomb)
-            g_iBomb ++
-            g_iBombDefault ++
-        }
-    }
+    g_bBombMap = isBombMap()
 
     if ( g_eSettings[SETTING_BOMB_LOAD] )
         loadData()
@@ -654,7 +800,7 @@ public bombMenu(id, iType)
     {
         case MENU_ROOT:   { menuRoot(id, iMenu); }
         case MENU_CREATE: { menuCreate(id, iMenu);  format(szData, charsmax(szData), "%s^n%L", szData, id, "BOMB_ROOT_CREATE"); }
-        case MENU_SWITCH: { menuSwitch(id, iMenu);  format(szData, charsmax(szData), "%s^n%L", szData, id, "BOMB_ROOT_SWITCH"); }
+        case MENU_STATUS: { menuStatus(id, iMenu);  format(szData, charsmax(szData), "%s^n%L", szData, id, "BOMB_ROOT_STATUS"); }
         case MENU_REMOVE: { menuRemove(id, iMenu);  format(szData, charsmax(szData), "%s^n%L", szData, id, "BOMB_ROOT_REMOVE"); }
         case MENU_SCALE:  { menuScale(id, iMenu);   format(szData, charsmax(szData), "%s^n%L", szData, id, "BOMB_ROOT_SCALE"); }
     }
@@ -686,7 +832,7 @@ public menuRoot(id, iMenu)
     formatex(szItem, charsmax(szItem), "%L", id, "BOMB_ROOT_CREATE")
     menu_additem(iMenu, szItem )
 
-    formatex(szItem, charsmax(szItem), "%L", id, "BOMB_ROOT_SWITCH")
+    formatex(szItem, charsmax(szItem), "%L", id, "BOMB_ROOT_STATUS")
     menu_additem(iMenu, szItem)
 
     formatex(szItem, charsmax(szItem), "%L", id, "BOMB_ROOT_REMOVE")
@@ -721,19 +867,13 @@ public menuHandlerRoot(id, menu, item)
                 client_print_color(id, id, "%L %L", id, "BOMB_CHAT_TAG", id, "BOMB_CHAT_LIMIT", MAX_ENT)
                 bombSound(id, SOUND_MENU_REMOVE)
             }
-            else if ( !g_eSettings[SETTING_BOMB_MAP]
-            && !g_eSettings[SETTING_BOMB_ANYWHERE] )
-            {
-                client_print_color(id, id, "%L %L", id, "BOMB_CHAT_TAG", id, "BOMB_CHAT_NO_PLACE")
-                bombSound(id, SOUND_MENU_REMOVE)
-            }
             else
             {
                 bombSound(id, SOUND_MENU_NAV)
                 bombMenu(id, MENU_CREATE)
             }
         }
-        case ROOT_SWITCH:
+        case ROOT_STATUS:
         {
             if ( !g_iBomb )
             {
@@ -743,7 +883,7 @@ public menuHandlerRoot(id, menu, item)
             else
             {
                 bombSound(id, SOUND_MENU_NAV)
-                bombMenu(id, MENU_SWITCH)
+                bombMenu(id, MENU_STATUS)
             }
         }
         case ROOT_REMOVE:
@@ -779,57 +919,35 @@ public menuHandlerRoot(id, menu, item)
 
 public menuCreate(id, iMenu)
 {
-    new szItem[64]
+    new eBomb[BOMB], szItem[64]
 
-    formatex(szItem, charsmax(szItem), "%L", id, "BOMB_CREATE_NEW")
-    menu_additem(iMenu, szItem)
+    for ( new i = 0; i < g_iBombConfig; i ++ )
+    {
+        ArrayGetArray(g_aBombConfig, i, eBomb)
 
-    formatex(szItem, charsmax(szItem), "%L", id, "BOMB_CREATE_RESTORE")
-    menu_additem(iMenu, szItem)
+        copy(szItem, charsmax(szItem), eBomb[BOMB_NAME])
+        menu_additem(iMenu, szItem)
+    }
 }
 
 public menuHandlerCreate(id, menu, item)
 {
-    new eBomb[BOMB]
-
-    switch( item )
+    if ( item == MENU_EXIT
+    || !is_user_alive(id) )
     {
-        case CREATE_NEW:
-        {
-            bombCreate(id)
-
-            bombSound(id, SOUND_MENU_NAV)
-            bombMenu(id, MENU_SCALE)
-        }
-        case CREATE_RESTORE:
-        {
-            if ( !g_iBombDefault )
-            {
-                client_print_color(id, id, "%L %L", id, "BOMB_CHAT_TAG", id, "BOMB_CHAT_NO_DEFAULT")
-                bombSound(id, SOUND_MENU_REMOVE)
-            }
-            else
-            {
-                for ( new i = 0; i < g_iBombDefault; i ++ )
-                {
-                    ArrayGetArray(g_aBombDefault, i, eBomb)
-
-                    if ( !isBombExist(eBomb) )
-                        bombCreate(0, i)
-                }
-
-                client_print_color(id, id, "%L %L", id, "BOMB_CHAT_TAG", id, "BOMB_CHAT_CREATE_RESTORE")
-                bombSound(id, SOUND_MENU_ALERT)
-                bombMenu(id, MENU_CREATE)
-            }
-        }
+        menu_destroy(menu)
+        return PLUGIN_HANDLED
     }
+
+    bombCreate(id, item)
+    bombSound(id, SOUND_MENU_NAV)
+    bombMenu(id, MENU_SCALE)
 
     menu_destroy(menu)
     return PLUGIN_HANDLED
 }
 
-public menuSwitch(id, iMenu)
+public menuStatus(id, iMenu)
 {
     new szItem[64],
         eBomb[BOMB]
@@ -837,32 +955,33 @@ public menuSwitch(id, iMenu)
     menuNav(id, iMenu)
     ArrayGetArray(g_aBomb, g_ePlayerData[id][PDATA_BOMB_MENU], eBomb)
 
-    formatex(szItem, charsmax(szItem), "%L", id, "BOMB_SWITCH_CURRENT",
-    id, eBomb[BOMB_ACTIVE] ? "BOMB_ACTIVATED" : "BOMB_DEACTIVATED")
+    formatex(szItem, charsmax(szItem), "%L", id, "BOMB_STATUS_CURRENT",
+    g_szStatusColor[eBomb[BOMB_STATUS]], id, g_szStatus[eBomb[BOMB_STATUS]])
     menu_additem(iMenu, szItem)
 
-    formatex(szItem, charsmax(szItem), "%L", id, "BOMB_SWITCH_ALL_DEACTIVATE")
+    formatex(szItem, charsmax(szItem), "%L", id, "BOMB_STATUS_ALL_ENABLE")
     menu_additem(iMenu, szItem)
 
-    formatex(szItem, charsmax(szItem), "%L", id, "BOMB_SWITCH_ALL_ACTIVATE")
+    formatex(szItem, charsmax(szItem), "%L", id, "BOMB_STATUS_ALL_DISABLE")
+    menu_additem(iMenu, szItem)
+
+    formatex(szItem, charsmax(szItem), "%L", id, "BOMB_STATUS_ALL_DEFAULT")
     menu_additem(iMenu, szItem)
 
     eBomb[BOMB_FLAGS] |= FLAG_SELECT
     ArraySetArray(g_aBomb, g_ePlayerData[id][PDATA_BOMB_MENU], eBomb)
 }
 
-public menuHandlerSwitch(id, menu, item)
+public menuHandlerStatus(id, menu, item)
 {
-    new eBomb[BOMB], bool:bState
-
+    new eBomb[BOMB]
     ArrayGetArray(g_aBomb, g_ePlayerData[id][PDATA_BOMB_MENU], eBomb)
     eBomb[BOMB_FLAGS] &= ~FLAG_SELECT
-    bState = eBomb[BOMB_ACTIVE]
     ArraySetArray(g_aBomb, g_ePlayerData[id][PDATA_BOMB_MENU], eBomb)
 
     switch( item )
     {
-        case SWITCH_NEXT:
+        case STATUS_NEXT:
         {
             if ( g_ePlayerData[id][PDATA_BOMB_MENU] >= g_iBomb - 1 )
                 g_ePlayerData[id][PDATA_BOMB_MENU] = 0
@@ -870,9 +989,9 @@ public menuHandlerSwitch(id, menu, item)
                 g_ePlayerData[id][PDATA_BOMB_MENU] ++
 
             bombSound(id, SOUND_MENU_NAV)
-            bombMenu(id, MENU_SWITCH)
+            bombMenu(id, MENU_STATUS)
         }
-        case SWITCH_BACK:
+        case STATUS_BACK:
         {
             if ( g_ePlayerData[id][PDATA_BOMB_MENU] <= 0 )
                 g_ePlayerData[id][PDATA_BOMB_MENU] = g_iBomb - 1
@@ -880,60 +999,90 @@ public menuHandlerSwitch(id, menu, item)
                 g_ePlayerData[id][PDATA_BOMB_MENU] --
 
             bombSound(id, SOUND_MENU_NAV)
-            bombMenu(id, MENU_SWITCH)
+            bombMenu(id, MENU_STATUS)
         }
-        case SWITCH_CURRENT:
+        case STATUS_CURRENT:
         {
-            eBomb[BOMB_ACTIVE] = !bState
+            if ( ++ eBomb[BOMB_STATUS] > STATUS_FORCE_ENABLE )
+                eBomb[BOMB_STATUS] = STATUS_DEFAULT
+
+            if ( eBomb[BOMB_STATUS] == STATUS_FORCE_ENABLE )
+            {
+                eBomb[BOMB_FLAGS] |= FLAG_ACTIVE
+
+                if ( eBomb[BOMB_FLAGS] & FLAG_ICON )
+                    iconColor(eBomb[BOMB_ICON], true, eBomb[BOMB_ICON_ALPHA])
+            }
+            else if ( eBomb[BOMB_STATUS] == STATUS_FORCE_DISABLE )
+            {
+                eBomb[BOMB_FLAGS] &= ~FLAG_ACTIVE
+
+                if ( eBomb[BOMB_FLAGS] & FLAG_ICON )
+                    iconColor(eBomb[BOMB_ICON], false, eBomb[BOMB_ICON_ALPHA])
+            }
+
+            iconRefresh()
+
+            client_print_color(id, id, "%L %L", id, "BOMB_CHAT_TAG", id, "BOMB_CHAT_STATUS_CURRENT",
+            id, g_szStatusChat[eBomb[BOMB_STATUS]])
             ArraySetArray(g_aBomb, g_ePlayerData[id][PDATA_BOMB_MENU], eBomb)
 
-            if ( g_eSettings[SETTING_ICON_SHOW] )
-                iconColor(eBomb[BOMB_ICON], eBomb[BOMB_ACTIVE] ? true : false)
-            iconRefresh()
-
-            client_print_color(id, id, "%L %L", id, "BOMB_CHAT_TAG", id, "BOMB_CHAT_SWITCH_CURRENT",
-            id, eBomb[BOMB_ACTIVE] ? "BOMB_CHAT_ACTIVATED" : "BOMB_CHAT_DEACTIVATED")
-
             bombSound(id, SOUND_MENU_NAV)
-            bombMenu(id, MENU_SWITCH)
+            bombMenu(id, MENU_STATUS)
         }
-        case SWITCH_ALL_DEACTIVATE:
+        case STATUS_ALL_ENABLE:
         {
             for ( new i = 0; i < g_iBomb; i ++ )
             {
                 ArrayGetArray(g_aBomb, i, eBomb)
-                eBomb[BOMB_ACTIVE] = false
+                eBomb[BOMB_FLAGS] |= FLAG_ACTIVE
+                eBomb[BOMB_STATUS] = STATUS_FORCE_ENABLE
 
                 ArraySetArray(g_aBomb, i, eBomb)
 
-                if ( g_eSettings[SETTING_ICON_SHOW] )
-                    iconColor(eBomb[BOMB_ICON], false)
+                if ( eBomb[BOMB_FLAGS] & FLAG_ICON )
+                    iconColor(eBomb[BOMB_ICON], true, eBomb[BOMB_ICON_ALPHA])
             }
 
             iconRefresh()
 
-            client_print_color(0, 0, "%L %L", 0, "BOMB_CHAT_TAG", 0, "BOMB_CHAT_SWITCH_ALL_DEACTIVATED")
+            client_print_color(0, 0, "%L %L", 0, "BOMB_CHAT_TAG", 0, "BOMB_CHAT_STATUS_ALL_ENABLED")
             bombSound(0, SOUND_MENU_ALERT)
-            bombMenu(id, MENU_SWITCH)
+            bombMenu(id, MENU_STATUS)
         }
-        case SWITCH_ALL_ACTIVATE:
+        case STATUS_ALL_DISABLE:
         {
             for ( new i = 0; i < g_iBomb; i ++ )
             {
                 ArrayGetArray(g_aBomb, i, eBomb)
-                eBomb[BOMB_ACTIVE] = true
+                eBomb[BOMB_FLAGS] &= ~FLAG_ACTIVE
+                eBomb[BOMB_STATUS] = STATUS_FORCE_DISABLE
 
                 ArraySetArray(g_aBomb, i, eBomb)
 
-                if ( g_eSettings[SETTING_ICON_SHOW] )
-                    iconColor(eBomb[BOMB_ICON], true)
+                if ( eBomb[BOMB_FLAGS] & FLAG_ICON )
+                    iconColor(eBomb[BOMB_ICON], false, eBomb[BOMB_ICON_ALPHA])
             }
 
             iconRefresh()
 
-            client_print_color(0, 0, "%L %L", 0, "BOMB_CHAT_TAG", 0, "BOMB_CHAT_SWITCH_ALL_ACTIVATED")
+            client_print_color(0, 0, "%L %L", 0, "BOMB_CHAT_TAG", 0, "BOMB_CHAT_STATUS_ALL_DISABLED")
             bombSound(0, SOUND_MENU_ALERT)
-            bombMenu(id, MENU_SWITCH)
+            bombMenu(id, MENU_STATUS)
+        }
+        case STATUS_ALL_DEFAULT:
+        {
+            for ( new i = 0; i < g_iBomb; i ++ )
+            {
+                ArrayGetArray(g_aBomb, i, eBomb)
+                eBomb[BOMB_STATUS] = STATUS_DEFAULT
+                ArraySetArray(g_aBomb, i, eBomb)
+            }
+
+            client_print_color(0, 0, "%L %L", 0, "BOMB_CHAT_TAG", 0, "BOMB_CHAT_STATUS_ALL_DEFAULT")
+
+            bombSound(0, SOUND_MENU_ALERT)
+            bombMenu(id, MENU_STATUS)
         }
         default:
         {
@@ -1062,9 +1211,12 @@ public menuHandlerScale(id, menu, item)
     new eBomb[BOMB], iItem
     if ( (iItem = bombGet(eBomb, g_ePlayerData[id][PDATA_BOMB_GHOST])) == -1 )
     {
-        menu_destroy( menu )
+        menu_destroy(menu)
         return PLUGIN_HANDLED
     }
+
+    new Float:fCurrentTime
+    fCurrentTime = get_gametime()
 
     switch( item )
     {
@@ -1072,15 +1224,15 @@ public menuHandlerScale(id, menu, item)
         {
             if ( g_ePlayerData[id][PDATA_SCALE_UP] )
             {
-                eBomb[BOMB_SCALE_Z] += g_fScaleFactor[g_ePlayerData[id][PDATA_SCALE_FACTOR]]
-                if (eBomb[BOMB_SCALE_Z] > g_eSettings[SETTING_SIZE_HEIGHT][1])
-                    eBomb[BOMB_SCALE_Z] = g_eSettings[SETTING_SIZE_HEIGHT][1]
+                eBomb[BOMB_SCALE][2] += g_fScaleFactor[g_ePlayerData[id][PDATA_SCALE_FACTOR]]
+                if (eBomb[BOMB_SCALE][2] > g_eSettings[SETTING_SIZE_HEIGHT][1])
+                    eBomb[BOMB_SCALE][2] = g_eSettings[SETTING_SIZE_HEIGHT][1]
             }
             else
             {
-                eBomb[BOMB_SCALE_Z] -= g_fScaleFactor[g_ePlayerData[id][PDATA_SCALE_FACTOR]]
-                if (eBomb[BOMB_SCALE_Z] < g_eSettings[SETTING_SIZE_HEIGHT][0])
-                    eBomb[BOMB_SCALE_Z] = g_eSettings[SETTING_SIZE_HEIGHT][0]
+                eBomb[BOMB_SCALE][2] -= g_fScaleFactor[g_ePlayerData[id][PDATA_SCALE_FACTOR]]
+                if (eBomb[BOMB_SCALE][2] < g_eSettings[SETTING_SIZE_HEIGHT][0])
+                    eBomb[BOMB_SCALE][2] = g_eSettings[SETTING_SIZE_HEIGHT][0]
             }
 
             ArraySetArray(g_aBomb, iItem, eBomb)
@@ -1091,15 +1243,15 @@ public menuHandlerScale(id, menu, item)
         {
             if ( g_ePlayerData[id][PDATA_SCALE_UP] )
             {
-                eBomb[BOMB_SCALE_X] += g_fScaleFactor[g_ePlayerData[id][PDATA_SCALE_FACTOR]]
-                if (eBomb[BOMB_SCALE_X] > g_eSettings[SETTING_SIZE_WIDTH][1])
-                    eBomb[BOMB_SCALE_X] = g_eSettings[SETTING_SIZE_WIDTH][1]
+                eBomb[BOMB_SCALE][0] += g_fScaleFactor[g_ePlayerData[id][PDATA_SCALE_FACTOR]]
+                if (eBomb[BOMB_SCALE][0] > g_eSettings[SETTING_SIZE_WIDTH][1])
+                    eBomb[BOMB_SCALE][0] = g_eSettings[SETTING_SIZE_WIDTH][1]
             }
             else
             {
-                eBomb[BOMB_SCALE_X] -= g_fScaleFactor[g_ePlayerData[id][PDATA_SCALE_FACTOR]]
-                if (eBomb[BOMB_SCALE_X] < g_eSettings[SETTING_SIZE_WIDTH][0])
-                    eBomb[BOMB_SCALE_X] = g_eSettings[SETTING_SIZE_WIDTH][0]
+                eBomb[BOMB_SCALE][0] -= g_fScaleFactor[g_ePlayerData[id][PDATA_SCALE_FACTOR]]
+                if (eBomb[BOMB_SCALE][0] < g_eSettings[SETTING_SIZE_WIDTH][0])
+                    eBomb[BOMB_SCALE][0] = g_eSettings[SETTING_SIZE_WIDTH][0]
             }
 
             ArraySetArray(g_aBomb, iItem, eBomb)
@@ -1110,15 +1262,15 @@ public menuHandlerScale(id, menu, item)
         {
             if ( g_ePlayerData[id][PDATA_SCALE_UP] )
             {
-                eBomb[BOMB_SCALE_Y] += g_fScaleFactor[g_ePlayerData[id][PDATA_SCALE_FACTOR]]
-                if (eBomb[BOMB_SCALE_Y] > g_eSettings[SETTING_SIZE_DEPTH][1])
-                    eBomb[BOMB_SCALE_Y] = g_eSettings[SETTING_SIZE_DEPTH][1]
+                eBomb[BOMB_SCALE][1] += g_fScaleFactor[g_ePlayerData[id][PDATA_SCALE_FACTOR]]
+                if (eBomb[BOMB_SCALE][1] > g_eSettings[SETTING_SIZE_DEPTH][1])
+                    eBomb[BOMB_SCALE][1] = g_eSettings[SETTING_SIZE_DEPTH][1]
             }
             else
             {
-                eBomb[BOMB_SCALE_Y] -= g_fScaleFactor[g_ePlayerData[id][PDATA_SCALE_FACTOR]]
-                if (eBomb[BOMB_SCALE_Y] < g_eSettings[SETTING_SIZE_DEPTH][0])
-                    eBomb[BOMB_SCALE_Y] = g_eSettings[SETTING_SIZE_DEPTH][0]
+                eBomb[BOMB_SCALE][1] -= g_fScaleFactor[g_ePlayerData[id][PDATA_SCALE_FACTOR]]
+                if (eBomb[BOMB_SCALE][1] < g_eSettings[SETTING_SIZE_DEPTH][0])
+                    eBomb[BOMB_SCALE][1] = g_eSettings[SETTING_SIZE_DEPTH][0]
             }
 
             ArraySetArray(g_aBomb, iItem, eBomb)
@@ -1144,16 +1296,26 @@ public menuHandlerScale(id, menu, item)
         case SCALE_PLACE:
         {
             bombTrace(eBomb, id)
-
             g_ePlayerData[id][PDATA_BOMB_GHOST] = 0
-            pev(eBomb[BOMB_ID], pev_origin, eBomb[BOMB_ORIGIN])
 
-            eBomb[BOMB_ACTIVE] = true
-            eBomb[BOMB_NEXT_RADAR] = get_gametime() + 2.0
+            if ( eBomb[BOMB_FLAGS] & FLAG_ACTIVE_DELAY )
+                eBomb[BOMB_NEXT_ENABLE] = fCurrentTime + random_float(eBomb[BOMB_ACTIVE_DELAY][0], eBomb[BOMB_ACTIVE_DELAY][1])
+            else
+                eBomb[BOMB_FLAGS] |= FLAG_ACTIVE
+
+            if ( eBomb[BOMB_FLAGS] & FLAG_ICON )
+            {
+                if ( eBomb[BOMB_FLAGS] & FLAG_ACTIVE )
+                    iconColor(eBomb[BOMB_ICON], true, eBomb[BOMB_ICON_ALPHA])
+                else
+                    iconColor(eBomb[BOMB_ICON], false, eBomb[BOMB_ICON_ALPHA])
+            }
+
+            eBomb[BOMB_NEXT_RADAR] = fCurrentTime + 2.0
             bombSetActive(eBomb)
             ArraySetArray(g_aBomb, iItem, eBomb)
 
-            client_print_color(id, id, "%L %L", id, "BOMB_CHAT_TAG", id, "BOMB_CHAT_CREATE_NEW")
+            client_print_color(id, id, "%L %L", id, "BOMB_CHAT_TAG", id, "BOMB_CHAT_CREATE_NEW", eBomb[BOMB_NAME])
             bombSound(id, SOUND_MENU_NAV)
             bombMenu(id, MENU_ROOT)
         }
@@ -1171,7 +1333,9 @@ public menuHandlerScale(id, menu, item)
 
 public bombTask()
 {
-    new eBomb[BOMB], iEnt
+    new eBomb[BOMB], iEnt, Float:fCurrentTime
+    fCurrentTime = get_gametime()
+
     for ( new id = 1; id <= g_iMaxPlayers; id ++ )
     {
         iEnt = g_ePlayerData[id][PDATA_BOMB_GHOST]
@@ -1186,35 +1350,71 @@ public bombTask()
     {
         ArrayGetArray(g_aBomb, i, eBomb)
 
-        if ( eBomb[BOMB_ACTIVE]
-        && g_eSettings[SETTING_BOMB_RADAR]
-        && get_gametime() >= eBomb[BOMB_NEXT_RADAR] )
-            bombRadar(eBomb)
-
         if ( eBomb[BOMB_FLAGS] & FLAG_SELECT )
             bombBeam(eBomb)
 
-        ArraySetArray(g_aBomb, i, eBomb)
+        if ( eBomb[BOMB_FLAGS] & FLAG_ACTIVE )
+        {
+            if ( fCurrentTime >= eBomb[BOMB_NEXT_RADAR] )
+                bombRadar(eBomb)
+
+            if ( eBomb[BOMB_NEXT_DISABLE] > 0.0
+            && fCurrentTime >= eBomb[BOMB_NEXT_DISABLE] )
+            {
+                eBomb[BOMB_FLAGS] &= ~FLAG_ACTIVE
+                eBomb[BOMB_NEXT_DISABLE] = 0.0
+                eBomb[BOMB_NEXT_ENABLE] = fCurrentTime + random_float(eBomb[BOMB_ACTIVE_COOLDOWN][0], eBomb[BOMB_ACTIVE_COOLDOWN][1])
+                ArraySetArray(g_aBomb, i, eBomb)
+
+                if ( eBomb[BOMB_FLAGS] & FLAG_ICON )
+                    iconColor(eBomb[BOMB_ICON], false, eBomb[BOMB_ICON_ALPHA])
+                iconRefresh()
+                bombSound(eBomb[BOMB_ID], SOUND_DISABLED, .bPlayer = false)
+            }
+        }
+        else
+        {
+            if ( eBomb[BOMB_NEXT_ENABLE] > 0.0
+            && fCurrentTime >= eBomb[BOMB_NEXT_ENABLE] )
+            {
+                eBomb[BOMB_FLAGS] |= FLAG_ACTIVE
+                eBomb[BOMB_NEXT_ENABLE] = 0.0
+                eBomb[BOMB_NEXT_DISABLE] = fCurrentTime + random_float(eBomb[BOMB_ACTIVE_DURATION][0], eBomb[BOMB_ACTIVE_DURATION][1])
+                ArraySetArray(g_aBomb, i, eBomb)
+
+                if ( eBomb[BOMB_FLAGS] & FLAG_ICON )
+                    iconColor(eBomb[BOMB_ICON], true, eBomb[BOMB_ICON_ALPHA])
+                iconRefresh()
+                bombSound(eBomb[BOMB_ID], SOUND_ENABLED, .bPlayer = false, .iPitch = 150)
+            }
+        }
     }
 }
 
-stock iconCreate(Float:fOrigin[3])
+stock iconCreate(eBomb[BOMB], Float:fOrigin[3])
 {
     new iEnt
     iEnt = engfunc(EngFunc_CreateNamedEntity, engfunc(EngFunc_AllocString, "env_sprite"))
     if ( !pev_valid(iEnt) )
         return 0
 
+    new iColor[3]
+    if ( eBomb[BOMB_FLAGS] & FLAG_ACTIVE )  for ( new i = 0; i < 3; i ++ ) iColor[i] = g_eSettings[SETTING_COLOR_ACTIVE][i]
+    else                                    for ( new i = 0; i < 3; i ++ ) iColor[i] = g_eSettings[SETTING_COLOR_INACTIVE][i]
+
     set_pev(iEnt, pev_impulse, BOMB_KEY)
     set_pev(iEnt, pev_classname, g_szCN)
     set_pev(iEnt, pev_origin, fOrigin)
-    engfunc(EngFunc_SetModel, iEnt, g_eSettings[SETTING_ICON])
+    engfunc(EngFunc_SetModel, iEnt, eBomb[BOMB_ICON_SPRITE])
+
+    set_pev(iEnt, pev_scale, eBomb[BOMB_ICON_SCALE])
+    set_rendering(iEnt, kRenderNormal, iColor[0], iColor[1], iColor[2], kRenderTransAdd, eBomb[BOMB_ICON_ALPHA])
 
     dllfunc(DLLFunc_Spawn, iEnt)
     return iEnt
 }
 
-stock bombCreate(id, iItem = -1)
+public bombCreate(id, iItem)
 {
     new iEnt
     iEnt = engfunc(EngFunc_CreateNamedEntity, engfunc(EngFunc_AllocString, "func_bomb_target"))
@@ -1223,39 +1423,27 @@ stock bombCreate(id, iItem = -1)
         return
 
     new eBomb[BOMB]
-    set_pev(iEnt, pev_classname, g_szCN)
+    ArrayGetArray(g_aBombConfig, iItem, eBomb)
+
+    eBomb[BOMB_ID] = iEnt
+    eBomb[BOMB_ITEM] = iItem
+    eBomb[BOMB_SCALE][0] = eBomb[BOMB_SCALE][1] = eBomb[BOMB_SCALE][2] = g_eSettings[SETTING_SIZE_BASE]
+    if ( id )
+    {
+        g_ePlayerData[id][PDATA_BOMB_GHOST] = iEnt
+        g_ePlayerData[id][PDATA_SCALE_UP] = true
+        g_ePlayerData[id][PDATA_SCALE_FACTOR] = 0
+        g_ePlayerData[id][PDATA_OFFSET] = g_eSettings[SETTING_OFFSET_BASE]
+    }
+
     set_pev(iEnt, BOMB_ARRAY_ITEM, g_iBomb)
     set_pev(iEnt, pev_impulse, BOMB_KEY)
-
-    if ( iItem != -1 )
-    {
-        ArrayGetArray(g_aBombDefault, iItem, eBomb)
-
-        eBomb[BOMB_ID] = iEnt
-        eBomb[BOMB_NEXT_RADAR] = get_gametime() + 2.0
-        set_pev(iEnt, pev_origin, eBomb[BOMB_ORIGIN])
-        dllfunc(DLLFunc_Spawn, iEnt)
-
-        bombSetActive(eBomb)
-    }
-    else
-    {
-        if ( id )
-        {
-            g_ePlayerData[id][PDATA_BOMB_GHOST] = iEnt
-            g_ePlayerData[id][PDATA_SCALE_UP] = true
-            g_ePlayerData[id][PDATA_SCALE_FACTOR] = 0
-            g_ePlayerData[id][PDATA_OFFSET] = g_eSettings[SETTING_OFFSET_BASE]
-        }
-
-        eBomb[BOMB_ID] = iEnt
-        eBomb[BOMB_ACTIVE] = false
-        eBomb[BOMB_SCALE_X] = eBomb[BOMB_SCALE_Y] = eBomb[BOMB_SCALE_Z] = g_eSettings[SETTING_SIZE_BASE]
-        dllfunc(DLLFunc_Spawn, iEnt)
-    }
+    set_pev(iEnt, pev_classname, g_szCN)
 
     ArrayPushArray(g_aBomb, eBomb)
     g_iBomb ++
+
+    dllfunc(DLLFunc_Spawn, iEnt)
 }
 
 stock bombRemove(iItem)
@@ -1291,7 +1479,18 @@ public saveData(id)
         formatex(szData, charsmax(szData), "[%d]^n", i)
         fputs(iFile, szData)
 
-        formatex(szData, charsmax(szData), "switch = %d^n", eBomb[BOMB_ACTIVE])
+        formatex(szData, charsmax(szData), "item = %d^n", eBomb[BOMB_ITEM])
+        fputs(iFile, szData)
+
+        formatex(szData, charsmax(szData), "status = %d^n", eBomb[BOMB_STATUS])
+        fputs(iFile, szData)
+
+        eBomb[BOMB_FLAGS] &= ~FLAG_SELECT
+        formatex(szData, charsmax(szData), "flags = %d^n", eBomb[BOMB_FLAGS])
+        fputs(iFile, szData)
+
+        formatex(szData, charsmax(szData), "scale = %.2f %.2f %.2f^n",
+        eBomb[BOMB_SCALE][0], eBomb[BOMB_SCALE][1], eBomb[BOMB_SCALE][2])
         fputs(iFile, szData)
 
         formatex(szData, charsmax(szData), "origin = %.2f %.2f %.2f^n",
@@ -1317,7 +1516,7 @@ public loadData()
 {
     new szFile[128], iFile,
         szData[64], szKey[32], szValue[32],
-        Float:fOrigin[3], Float:fCorners[8][3], bool:bState,
+        iItem, iStatus, iFlags, Float:fScale[3], Float:fOrigin[3], Float:fCorners[8][3],
         iCorner, iCount = -1
 
     get_mapname(szFile, charsmax(szFile))
@@ -1337,9 +1536,9 @@ public loadData()
         if ( szData[0] == '[' )
         {
             if ( iCount != -1 )
-                loadDataBomb(fCorners, fOrigin, bState, iCount)
+                loadDataBomb(fCorners, fOrigin, iItem, iStatus, iFlags, iCount)
 
-            iCount++
+            iCount ++
         }
         else
         {
@@ -1347,50 +1546,65 @@ public loadData()
             trim(szKey)
             trim(szValue)
 
-            switch( szKey[0] )
+            if ( equal(szKey, "item") )
             {
-                case 's':
-                {
-                    bState = bool:str_to_num(szValue)
-                }
-                case 'o':
-                {
-                    strtok(szValue, szKey, charsmax(szKey), szValue, charsmax(szValue), ' ')
-                    fOrigin[0] = str_to_float(szKey)
+                iItem = str_to_num(szValue)
+            }
+            else if ( equal(szKey, "status") )
+            {
+                iStatus = str_to_num(szValue)
+            }
+            else if ( equal(szKey, "flags") )
+            {
+                iFlags = str_to_num(szValue)
+            }
+            else if ( equal(szKey, "scale") )
+            {
+                strtok(szValue, szKey, charsmax(szKey), szValue, charsmax(szValue), ' ')
+                fScale[0] = str_to_float(szKey)
 
-                    strtok(szValue, szKey, charsmax(szKey), szValue, charsmax(szValue), ' ')
-                    fOrigin[1] = str_to_float(szKey)
-                    fOrigin[2] = str_to_float(szValue)
-                }
-                case 'c':
-                {
-                    iCorner = str_to_num(szKey[7])
+                strtok(szValue, szKey, charsmax(szKey), szValue, charsmax(szValue), ' ')
+                fScale[1] = str_to_float(szKey)
+                fScale[2] = str_to_float(szValue)
+            }
+            else if ( equal(szKey, "origin") )
+            {
+                strtok(szValue, szKey, charsmax(szKey), szValue, charsmax(szValue), ' ')
+                fOrigin[0] = str_to_float(szKey)
 
-                    strtok(szValue, szKey, charsmax(szKey), szValue, charsmax(szValue), ' ')
-                    fCorners[iCorner - 1][0] = str_to_float(szKey)
+                strtok(szValue, szKey, charsmax(szKey), szValue, charsmax(szValue), ' ')
+                fOrigin[1] = str_to_float(szKey)
+                fOrigin[2] = str_to_float(szValue)
+            }
+            else if ( contain(szKey, "corner") )
+            {
+                iCorner = str_to_num(szKey[7])
 
-                    strtok(szValue, szKey, charsmax(szKey), szValue, charsmax(szValue), ' ')
-                    fCorners[iCorner - 1][1] = str_to_float(szKey)
-                    fCorners[iCorner - 1][2] = str_to_float(szValue)
-                }
+                strtok(szValue, szKey, charsmax(szKey), szValue, charsmax(szValue), ' ')
+                fCorners[iCorner - 1][0] = str_to_float(szKey)
+
+                strtok(szValue, szKey, charsmax(szKey), szValue, charsmax(szValue), ' ')
+                fCorners[iCorner - 1][1] = str_to_float(szKey)
+                fCorners[iCorner - 1][2] = str_to_float(szValue)
             }
         }
     }
 
     if ( iCount != -1 )
-        loadDataBomb(fCorners, fOrigin, bState, iCount)
+        loadDataBomb(fCorners, fOrigin, iItem, iStatus, iFlags, iCount)
 
     fclose(iFile)
     return PLUGIN_HANDLED
 }
 
-stock loadDataBomb(Float:fCorners[8][3], Float:fOrigin[3], bool:bState, iCount)
+stock loadDataBomb(Float:fCorners[8][3], Float:fOrigin[3], iItem, iStatus, iFlags, iCount)
 {
     new eBomb[BOMB]
-    bombCreate(0)
+    bombCreate(0, iItem)
     ArrayGetArray(g_aBomb, iCount, eBomb)
 
-    eBomb[BOMB_ACTIVE] = bState
+    eBomb[BOMB_STATUS] = iStatus
+    eBomb[BOMB_FLAGS] = iFlags
     eBomb[BOMB_NEXT_RADAR] = get_gametime() + 2.0
     xs_vec_copy(fOrigin, eBomb[BOMB_ORIGIN])
     for ( new i = 0; i < 8; i ++ )
@@ -1401,8 +1615,8 @@ stock loadDataBomb(Float:fCorners[8][3], Float:fOrigin[3], bool:bState, iCount)
     bombSetActive(eBomb)
     ArraySetArray(g_aBomb, iCount, eBomb)
 
-    if ( !eBomb[BOMB_ACTIVE] )
-        iconColor(eBomb[BOMB_ICON], false)
+    if ( !(eBomb[BOMB_FLAGS] & FLAG_ACTIVE) )
+        iconColor(eBomb[BOMB_ICON], false, eBomb[BOMB_ICON_ALPHA])
 }
 
 public bombNoClip(id)
@@ -1459,9 +1673,6 @@ public fwdSpawnIcon(iEnt)
 
     set_pev(iEnt, pev_solid, SOLID_NOT)
     set_pev(iEnt, pev_movetype, MOVETYPE_NONE)
-    set_pev(iEnt, pev_scale, g_eSettings[SETTING_ICON_SCALE])
-    set_rendering(iEnt, kRenderNormal, g_eSettings[SETTING_COLOR_ACTIVE][0], g_eSettings[SETTING_COLOR_ACTIVE][1], g_eSettings[SETTING_COLOR_ACTIVE][2],
-    kRenderTransAdd, g_eSettings[SETTING_ICON_ALPHA])
 
     return HAM_IGNORED
 }
@@ -1485,8 +1696,7 @@ public fwdKilled(id, iAttacker, bGib)
 
 public fwdAddC4(iEnt, id)
 {
-    if ( !g_eSettings[SETTING_BOMB_MAP]
-    && !g_eSettings[SETTING_BOMB_ANYWHERE] )
+    if ( !g_eSettings[SETTING_BOMB_ANYWHERE] && !g_bBombMap )
     {
         iconDraw(id, ICON_HIDE)
         return HAM_SUPERCEDE
@@ -1549,14 +1759,14 @@ public iconDraw(id, iState)
     message_end()
 }
 
-public iconColor(id, bool:bActive)
+public iconColor(iEnt, bool:bActive, iAlpha)
 {
     new iColor[3]
     if ( bActive ) for ( new i = 0; i < 3; i ++ ) iColor[i] = g_eSettings[SETTING_COLOR_ACTIVE][i]
     else           for ( new i = 0; i < 3; i ++ ) iColor[i] = g_eSettings[SETTING_COLOR_INACTIVE][i]
 
-    set_rendering(id, kRenderNormal, iColor[0], iColor[1], iColor[2],
-    kRenderTransAdd, g_eSettings[SETTING_ICON_ALPHA])
+    set_rendering(iEnt, kRenderNormal, iColor[0], iColor[1], iColor[2],
+    kRenderTransAdd, iAlpha)
 }
 
 stock iconRefresh()
@@ -1565,7 +1775,7 @@ stock iconRefresh()
         eventStatusIcon(g_iPlayerBomb)
 }
 
-public bombTrace(eBomb[BOMB], id)
+stock bombTrace(eBomb[BOMB], id)
 {
     new Float:fVec1[3]
 
@@ -1608,39 +1818,39 @@ stock bombSetBox(eBomb[BOMB], bool:bSetCorners = false)
     }
 }
 
-public boxCorners(eBomb[BOMB])
+stock boxCorners(eBomb[BOMB])
 {
-    eBomb[BOMB_CORNERS][0]  = eBomb[BOMB_ORIGIN][0] - eBomb[BOMB_SCALE_X]
-    eBomb[BOMB_CORNERS][1]  = eBomb[BOMB_ORIGIN][1] - eBomb[BOMB_SCALE_Y]
-    eBomb[BOMB_CORNERS][2]  = eBomb[BOMB_ORIGIN][2] - eBomb[BOMB_SCALE_Z]
+    eBomb[BOMB_CORNERS][0]  = eBomb[BOMB_ORIGIN][0] - eBomb[BOMB_SCALE][0]
+    eBomb[BOMB_CORNERS][1]  = eBomb[BOMB_ORIGIN][1] - eBomb[BOMB_SCALE][1]
+    eBomb[BOMB_CORNERS][2]  = eBomb[BOMB_ORIGIN][2] - eBomb[BOMB_SCALE][2]
 
-    eBomb[BOMB_CORNERS][3]  = eBomb[BOMB_ORIGIN][0] + eBomb[BOMB_SCALE_X]
-    eBomb[BOMB_CORNERS][4]  = eBomb[BOMB_ORIGIN][1] - eBomb[BOMB_SCALE_Y]
-    eBomb[BOMB_CORNERS][5]  = eBomb[BOMB_ORIGIN][2] - eBomb[BOMB_SCALE_Z]
+    eBomb[BOMB_CORNERS][3]  = eBomb[BOMB_ORIGIN][0] + eBomb[BOMB_SCALE][0]
+    eBomb[BOMB_CORNERS][4]  = eBomb[BOMB_ORIGIN][1] - eBomb[BOMB_SCALE][1]
+    eBomb[BOMB_CORNERS][5]  = eBomb[BOMB_ORIGIN][2] - eBomb[BOMB_SCALE][2]
 
-    eBomb[BOMB_CORNERS][6]  = eBomb[BOMB_ORIGIN][0] - eBomb[BOMB_SCALE_X]
-    eBomb[BOMB_CORNERS][7]  = eBomb[BOMB_ORIGIN][1] + eBomb[BOMB_SCALE_Y]
-    eBomb[BOMB_CORNERS][8]  = eBomb[BOMB_ORIGIN][2] - eBomb[BOMB_SCALE_Z]
+    eBomb[BOMB_CORNERS][6]  = eBomb[BOMB_ORIGIN][0] - eBomb[BOMB_SCALE][0]
+    eBomb[BOMB_CORNERS][7]  = eBomb[BOMB_ORIGIN][1] + eBomb[BOMB_SCALE][1]
+    eBomb[BOMB_CORNERS][8]  = eBomb[BOMB_ORIGIN][2] - eBomb[BOMB_SCALE][2]
 
-    eBomb[BOMB_CORNERS][9]  = eBomb[BOMB_ORIGIN][0] + eBomb[BOMB_SCALE_X]
-    eBomb[BOMB_CORNERS][10] = eBomb[BOMB_ORIGIN][1] + eBomb[BOMB_SCALE_Y]
-    eBomb[BOMB_CORNERS][11] = eBomb[BOMB_ORIGIN][2] - eBomb[BOMB_SCALE_Z]
+    eBomb[BOMB_CORNERS][9]  = eBomb[BOMB_ORIGIN][0] + eBomb[BOMB_SCALE][0]
+    eBomb[BOMB_CORNERS][10] = eBomb[BOMB_ORIGIN][1] + eBomb[BOMB_SCALE][1]
+    eBomb[BOMB_CORNERS][11] = eBomb[BOMB_ORIGIN][2] - eBomb[BOMB_SCALE][2]
 
-    eBomb[BOMB_CORNERS][12] = eBomb[BOMB_ORIGIN][0] - eBomb[BOMB_SCALE_X]
-    eBomb[BOMB_CORNERS][13] = eBomb[BOMB_ORIGIN][1] - eBomb[BOMB_SCALE_Y]
-    eBomb[BOMB_CORNERS][14] = eBomb[BOMB_ORIGIN][2] + eBomb[BOMB_SCALE_Z]
+    eBomb[BOMB_CORNERS][12] = eBomb[BOMB_ORIGIN][0] - eBomb[BOMB_SCALE][0]
+    eBomb[BOMB_CORNERS][13] = eBomb[BOMB_ORIGIN][1] - eBomb[BOMB_SCALE][1]
+    eBomb[BOMB_CORNERS][14] = eBomb[BOMB_ORIGIN][2] + eBomb[BOMB_SCALE][2]
 
-    eBomb[BOMB_CORNERS][15] = eBomb[BOMB_ORIGIN][0] + eBomb[BOMB_SCALE_X]
-    eBomb[BOMB_CORNERS][16] = eBomb[BOMB_ORIGIN][1] - eBomb[BOMB_SCALE_Y]
-    eBomb[BOMB_CORNERS][17] = eBomb[BOMB_ORIGIN][2] + eBomb[BOMB_SCALE_Z]
+    eBomb[BOMB_CORNERS][15] = eBomb[BOMB_ORIGIN][0] + eBomb[BOMB_SCALE][0]
+    eBomb[BOMB_CORNERS][16] = eBomb[BOMB_ORIGIN][1] - eBomb[BOMB_SCALE][1]
+    eBomb[BOMB_CORNERS][17] = eBomb[BOMB_ORIGIN][2] + eBomb[BOMB_SCALE][2]
 
-    eBomb[BOMB_CORNERS][18] = eBomb[BOMB_ORIGIN][0] - eBomb[BOMB_SCALE_X]
-    eBomb[BOMB_CORNERS][19] = eBomb[BOMB_ORIGIN][1] + eBomb[BOMB_SCALE_Y]
-    eBomb[BOMB_CORNERS][20] = eBomb[BOMB_ORIGIN][2] + eBomb[BOMB_SCALE_Z]
+    eBomb[BOMB_CORNERS][18] = eBomb[BOMB_ORIGIN][0] - eBomb[BOMB_SCALE][0]
+    eBomb[BOMB_CORNERS][19] = eBomb[BOMB_ORIGIN][1] + eBomb[BOMB_SCALE][1]
+    eBomb[BOMB_CORNERS][20] = eBomb[BOMB_ORIGIN][2] + eBomb[BOMB_SCALE][2]
 
-    eBomb[BOMB_CORNERS][21] = eBomb[BOMB_ORIGIN][0] + eBomb[BOMB_SCALE_X]
-    eBomb[BOMB_CORNERS][22] = eBomb[BOMB_ORIGIN][1] + eBomb[BOMB_SCALE_Y]
-    eBomb[BOMB_CORNERS][23] = eBomb[BOMB_ORIGIN][2] + eBomb[BOMB_SCALE_Z]
+    eBomb[BOMB_CORNERS][21] = eBomb[BOMB_ORIGIN][0] + eBomb[BOMB_SCALE][0]
+    eBomb[BOMB_CORNERS][22] = eBomb[BOMB_ORIGIN][1] + eBomb[BOMB_SCALE][1]
+    eBomb[BOMB_CORNERS][23] = eBomb[BOMB_ORIGIN][2] + eBomb[BOMB_SCALE][2]
 }
 
 stock bombSetOffset(eBomb[BOMB])
@@ -1673,8 +1883,8 @@ stock bombSetActive(eBomb[BOMB])
     xs_vec_sub(eBomb[BOMB_MAXS], eBomb[BOMB_ORIGIN], fMaxs)
 
     xs_vec_copy(eBomb[BOMB_ORIGIN], fVec1)
-    if ( g_eSettings[SETTING_ICON_SHOW] )
-        eBomb[BOMB_ICON] = iconCreate(fVec1)
+    if ( eBomb[BOMB_FLAGS] & FLAG_ICON )
+        eBomb[BOMB_ICON] = iconCreate(eBomb, fVec1)
 
     engfunc(EngFunc_SetSize, eBomb[BOMB_ID], fMins, fMaxs)
 }
@@ -1692,20 +1902,20 @@ stock bombBeam(eBomb[BOMB])
     xs_vec_copy(eBomb[BOMB_CORNERS][18], fCorners[6])
     xs_vec_copy(eBomb[BOMB_CORNERS][21], fCorners[7])
 
-    beamDraw(fCorners[0], fCorners[1], eBomb[BOMB_ACTIVE])
-    beamDraw(fCorners[1], fCorners[3], eBomb[BOMB_ACTIVE])
-    beamDraw(fCorners[3], fCorners[2], eBomb[BOMB_ACTIVE])
-    beamDraw(fCorners[2], fCorners[0], eBomb[BOMB_ACTIVE])
+    beamDraw(fCorners[0], fCorners[1], eBomb[BOMB_FLAGS] & FLAG_ACTIVE != 0)
+    beamDraw(fCorners[1], fCorners[3], eBomb[BOMB_FLAGS] & FLAG_ACTIVE != 0)
+    beamDraw(fCorners[3], fCorners[2], eBomb[BOMB_FLAGS] & FLAG_ACTIVE != 0)
+    beamDraw(fCorners[2], fCorners[0], eBomb[BOMB_FLAGS] & FLAG_ACTIVE != 0)
 
-    beamDraw(fCorners[0], fCorners[4], eBomb[BOMB_ACTIVE])
-    beamDraw(fCorners[1], fCorners[5], eBomb[BOMB_ACTIVE])
-    beamDraw(fCorners[2], fCorners[6], eBomb[BOMB_ACTIVE])
-    beamDraw(fCorners[3], fCorners[7], eBomb[BOMB_ACTIVE])
+    beamDraw(fCorners[0], fCorners[4], eBomb[BOMB_FLAGS] & FLAG_ACTIVE != 0)
+    beamDraw(fCorners[1], fCorners[5], eBomb[BOMB_FLAGS] & FLAG_ACTIVE != 0)
+    beamDraw(fCorners[2], fCorners[6], eBomb[BOMB_FLAGS] & FLAG_ACTIVE != 0)
+    beamDraw(fCorners[3], fCorners[7], eBomb[BOMB_FLAGS] & FLAG_ACTIVE != 0)
 
-    beamDraw(fCorners[4], fCorners[5], eBomb[BOMB_ACTIVE])
-    beamDraw(fCorners[5], fCorners[7], eBomb[BOMB_ACTIVE])
-    beamDraw(fCorners[7], fCorners[6], eBomb[BOMB_ACTIVE])
-    beamDraw(fCorners[6], fCorners[4], eBomb[BOMB_ACTIVE])
+    beamDraw(fCorners[4], fCorners[5], eBomb[BOMB_FLAGS] & FLAG_ACTIVE != 0)
+    beamDraw(fCorners[5], fCorners[7], eBomb[BOMB_FLAGS] & FLAG_ACTIVE != 0)
+    beamDraw(fCorners[7], fCorners[6], eBomb[BOMB_FLAGS] & FLAG_ACTIVE != 0)
+    beamDraw(fCorners[6], fCorners[4], eBomb[BOMB_FLAGS] & FLAG_ACTIVE != 0)
 }
 
 stock beamDraw(Float:fStart[3], Float:fEnd[3], bool:bActive)
@@ -1722,7 +1932,7 @@ stock beamDraw(Float:fStart[3], Float:fEnd[3], bool:bActive)
     write_byte(0)
     write_byte(0)
     write_byte(1)
-    write_byte(random_num(g_eSettings[SETTING_BEAM_WIDTH][0], g_eSettings[SETTING_BEAM_WIDTH][1]))
+    write_byte(g_eSettings[SETTING_BEAM_WIDTH])
     write_byte(0)
     if ( bActive )
     {
@@ -1736,15 +1946,15 @@ stock beamDraw(Float:fStart[3], Float:fEnd[3], bool:bActive)
         write_byte(g_eSettings[SETTING_COLOR_INACTIVE][1])
         write_byte(g_eSettings[SETTING_COLOR_INACTIVE][2])
     }
-    write_byte(random_num(g_eSettings[SETTING_BEAM_ALPHA][0], g_eSettings[SETTING_BEAM_ALPHA][1]))
+    write_byte(g_eSettings[SETTING_BEAM_ALPHA])
     write_byte(0)
     message_end()
 }
 
 stock bombRadar(eBomb[BOMB])
 {
-    if ( g_eSettings[SETTING_BOMB_RADAR] == RADAR_T
-    || g_eSettings[SETTING_BOMB_RADAR] == RADAR_BOTH )
+    if ( eBomb[BOMB_RADAR] == TEAM_T
+    || eBomb[BOMB_RADAR] == TEAM_BOTH )
     {
         message_begin(MSG_BROADCAST, g_iBombDrop)
         write_coord_f(eBomb[BOMB_ORIGIN][0])
@@ -1754,8 +1964,8 @@ stock bombRadar(eBomb[BOMB])
         message_end()
     }
 
-    if ( g_eSettings[SETTING_BOMB_RADAR] == RADAR_CT
-    || g_eSettings[SETTING_BOMB_RADAR] == RADAR_BOTH )
+    if ( eBomb[BOMB_RADAR] == TEAM_CT
+    || eBomb[BOMB_RADAR] == TEAM_BOTH )
     {
         message_begin(MSG_BROADCAST, g_iHostageK)
         write_byte(0)
@@ -1773,58 +1983,48 @@ stock bombRadar(eBomb[BOMB])
     eBomb[BOMB_NEXT_RADAR] = get_gametime() + 2.0
 }
 
-stock bombSound(iEnt, iSound, iChan = CHAN_ITEM, bool:bPlayer = true, iFlags = 0)
+stock bool:isBombMap()
 {
-    new szSample[64]
+    return engfunc(EngFunc_FindEntityByString, -1, "classname", "func_bomb_target") > 0
+}
+
+stock bombReset(eBomb[BOMB])
+{
+    eBomb[BOMB_FLAGS] &= ~FLAG_ACTIVE
+    eBomb[BOMB_NEXT_RADAR] = 0.0
+    eBomb[BOMB_NEXT_ENABLE] = 0.0
+    eBomb[BOMB_NEXT_DISABLE] = 0.0
+}
+
+stock bombSound(iEnt, iSound, iChan = CHAN_ITEM, bool:bPlayer = true, iFlags = 0, iPitch = PITCH_NORM)
+{
+    new szSample[MAX_RESOURCE_PATH_LENGTH]
 
     switch( iSound )
     {
         case SOUND_MENU_NAV:        copy(szSample, charsmax(szSample), g_eSettings[SETTING_SOUND_MENU_NAV])
         case SOUND_MENU_REMOVE:     copy(szSample, charsmax(szSample), g_eSettings[SETTING_SOUND_MENU_REMOVE])
         case SOUND_MENU_ALERT:      copy(szSample, charsmax(szSample), g_eSettings[SETTING_SOUND_MENU_ALERT])
+        case SOUND_ENABLED:         ArrayGetString(g_eSettings[SETTING_SOUND_SUITCHARGE],  random(ArraySize(g_eSettings[SETTING_SOUND_SUITCHARGE])),  szSample, charsmax(szSample))
+        case SOUND_DISABLED:        ArrayGetString(g_eSettings[SETTING_SOUND_BLIP2], random(ArraySize(g_eSettings[SETTING_SOUND_BLIP2])), szSample, charsmax(szSample))
     }
 
     if ( bPlayer )
         client_cmd(iEnt, "spk %s", szSample)
     else
-        engfunc(EngFunc_EmitSound, iEnt, iChan, szSample, VOL_NORM, ATTN_NORM, iFlags, PITCH_NORM)
-}
-
-stock bool:isBombMap()
-{
-    return engfunc(EngFunc_FindEntityByString, -1, "classname", "func_bomb_target") > 0
-}
-
-stock bool:isBombExist(eBombDefault[BOMB])
-{
-    new eBomb[BOMB],
-        Float:fDiff[3]
-
-    for ( new i = 0; i < g_iBomb; i ++ )
-    {
-        ArrayGetArray(g_aBomb, i, eBomb)
-
-        xs_vec_sub(eBombDefault[BOMB_ORIGIN], eBomb[BOMB_ORIGIN], fDiff)
-        if ( floatabs(fDiff[0]) < 1.0
-        && floatabs(fDiff[1]) < 1.0
-        && floatabs(fDiff[2]) < 1.0 )
-            return true
-    }
-
-    return false
+        engfunc(EngFunc_EmitSound, iEnt, iChan, szSample, VOL_NORM, ATTN_NORM, iFlags, iPitch)
 }
 
 stock bool:isBombActive(id)
 {
-    new eBomb[BOMB],
-        Float:fOrigin[3]
+    new eBomb[BOMB], Float:fOrigin[3]
 
     pev(id, pev_origin, fOrigin)
     for ( new i = 0; i < g_iBomb; i ++ )
     {
         ArrayGetArray(g_aBomb, i, eBomb)
 
-        if ( !eBomb[BOMB_ACTIVE] )
+        if ( !(eBomb[BOMB_FLAGS] & FLAG_ACTIVE) )
             continue
 
         if ( fOrigin[0] >= eBomb[BOMB_MINS][0] - 25.0 && fOrigin[0] <= eBomb[BOMB_MAXS][0] + 25.0
