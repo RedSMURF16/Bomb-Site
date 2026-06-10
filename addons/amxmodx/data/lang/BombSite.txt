@@ -16,6 +16,7 @@ BOMB_CHAT_SAVE                      = Bomb Site data saved in ^4%s
 
 BOMB_CHAT_ENABLED                   = Enabled
 BOMB_CHAT_DISABLED                  = Disabled
+BOMB_CHAT_DEFAULT                   = Default
 
 BOMB_NAV_NEXT                       = Next
 BOMB_NAV_BACK                       = Back
@@ -25,6 +26,7 @@ BOMB_ON                             = \y[ON]
 BOMB_OFF                            = \r[OFF]
 BOMB_ENABLED                        = \y[ENABLED]
 BOMB_DISABLED                       = \r[DISABLED]
+BOMB_DEFAULT                        = \d[DEFAULT]
 BOMB_INCREASE                       = \y[INCREASE]
 BOMB_DECREASE                       = \r[DECREASE]
 
@@ -38,11 +40,12 @@ BOMB_ROOT_NOCLIP                    = Status noclip %L
 BOMB_ROOT_GODMODE                   = Status godmode %L
 BOMB_ROOT_SCALE                     = Adjust scaling
 
-BOMB_STATUS_CURRENT                 = Status Bomb Site >> %L
+BOMB_STATUS_CURRENT                 = Status Bomb Site >> %s%s %L
 BOMB_STATUS_ALL_ENABLE              = Enable All Bomb Sites
 BOMB_STATUS_ALL_DISABLE             = Disable All Bomb Sites
+BOMB_STATUS_ALL_DEFAULT             = Reset-Status for all Bomb-Sites
 
-BOMB_REMOVE_CURRENT                 = Remove Bomb Site
+BOMB_REMOVE_CURRENT                 = Remove Bomb-Site >> %s%s
 BOMB_REMOVE_ALL                     = Remove All Bomb Sites
 
 BOMB_SCALE_HEIGHT                   = %L Height
