@@ -6,13 +6,13 @@ BOMB_CHAT_NO_DATA                   = Bomb Sites data hasn't been found
 BOMB_CHAT_NO_DEFAULT                = There are no default Bomb Sites on this map
 BOMB_CHAT_NO_PLACE                  = You can't place Bomb Sites on this map
 BOMB_CHAT_CREATE_NEW                = ^3%s ^1created
-BOMB_CHAT_STATUS_CURRENT            = ^3Bomb Site ^1is %L
+BOMB_CHAT_STATUS_CURRENT            = ^3%s ^1is %L
 BOMB_CHAT_STATUS_ALL_ENABLED        = All Bomb Sites are now enabled
 BOMB_CHAT_STATUS_ALL_DISABLED       = All Bomb Sites are now disabled
 BOMB_CHAT_STATUS_ALL_DEFAULT        = All Bomb Sites status reset to Default
 BOMB_CHAT_REMOVE_CURRENT            = ^3%s ^1removed
 BOMB_CHAT_REMOVE_ALL                = All Bomb Sites removed
-BOMB_CHAT_SAVE                      = Bomb Site data saved in ^4%s
+BOMB_CHAT_SAVE                      = Bomb Sites data saved in ^4%s
 
 BOMB_CHAT_ENABLED                   = Enabled
 BOMB_CHAT_DISABLED                  = Disabled
