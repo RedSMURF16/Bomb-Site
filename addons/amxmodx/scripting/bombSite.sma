@@ -295,7 +295,7 @@ public plugin_init()
     register_forward(FM_UpdateClientData, "fwdUpdateClientData", 1)
     register_forward(FM_SetModel, "fwdSetModel", 1)
     RegisterHam(Ham_Spawn, "func_bomb_target", "fwdSpawn", 1)
-    RegisterHam(Ham_Spawn, "env_sprite", "fwdSpawnIcon", 1)
+    RegisterHam(Ham_Spawn, "env_sprite", "fwdSpawn", 1)
     RegisterHam(Ham_Player_PreThink, "player", "fwdPreThink")
     RegisterHam(Ham_Killed, "player", "fwdKilled", 1)
     RegisterHam(Ham_Item_AddToPlayer, "weapon_c4", "fwdAddC4")
@@ -1671,17 +1671,6 @@ public fwdSpawn(iEnt)
     return HAM_IGNORED
 }
 
-public fwdSpawnIcon(iEnt)
-{
-    if ( !isBomb(iEnt) )
-        return HAM_IGNORED
-
-    set_pev(iEnt, pev_solid, SOLID_NOT)
-    set_pev(iEnt, pev_movetype, MOVETYPE_NONE)
-
-    return HAM_IGNORED
-}
-
 public fwdKilled(id, iAttacker, bGib)
 {
     if ( g_ePlayerData[id][PDATA_BOMB_GHOST] )
@@ -1772,8 +1761,7 @@ public iconColor(iEnt, bool:bActive, iAlpha)
     if ( bActive ) for ( new i = 0; i < 3; i ++ ) iColor[i] = g_eSettings[SETTING_COLOR_ACTIVE][i]
     else           for ( new i = 0; i < 3; i ++ ) iColor[i] = g_eSettings[SETTING_COLOR_INACTIVE][i]
 
-    set_rendering(iEnt, kRenderNormal, iColor[0], iColor[1], iColor[2],
-    kRenderTransAdd, iAlpha)
+    set_rendering(iEnt, kRenderNormal, iColor[0], iColor[1], iColor[2], kRenderTransAdd, iAlpha)
 }
 
 stock iconRefresh()
