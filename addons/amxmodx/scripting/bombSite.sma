@@ -814,6 +814,10 @@ public bombMenu(id, iType)
         case MENU_SCALE:  { menuScale(id, iMenu);   format(szData, charsmax(szData), "%s^n%L", szData, id, "BOMB_ROOT_SCALE"); }
     }
 
+    if ( menu_pages(iMenu) > 1 )
+        format(szData, charsmax(szData), "%s^n%L", szData, id, "BOMB_MENU_TITLE_PAGE")
+
+    menu_setprop(iMenu, MPROP_TITLE, szData)
     menu_setprop(iMenu, MPROP_EXIT, MEXIT_ALL)
     menu_setprop(iMenu, MPROP_NUMBER_COLOR, "\r")
 
@@ -1516,6 +1520,7 @@ public saveData(id)
     fclose(iFile)
 
     bombSound(id, SOUND_MENU_NAV)
+    bombMenu(id, MENU_ROOT)
     return PLUGIN_HANDLED
 }
 

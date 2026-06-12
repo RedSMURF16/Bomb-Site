@@ -16,7 +16,7 @@ BOMB_CHAT_SAVE                      = Bomb Sites data saved in ^4%s
 
 BOMB_CHAT_ENABLED                   = Enabled
 BOMB_CHAT_DISABLED                  = Disabled
-BOMB_CHAT_DEFAULT                   = Default
+BOMB_CHAT_DEFAULT                   = reset to Default
 
 BOMB_NAV_NEXT                       = Next
 BOMB_NAV_BACK                       = Back
@@ -31,6 +31,7 @@ BOMB_INCREASE                       = \y[INCREASE]
 BOMB_DECREASE                       = \r[DECREASE]
 
 BOMB_MENU_TITLE                     = \dBomb Site - Version \y%s
+BOMB_MENU_TITLE_PAGE                = \yPage:\r
 
 BOMB_ROOT_CREATE                    = Create Bomb Site
 BOMB_ROOT_STATUS                    = Status Bomb Site
