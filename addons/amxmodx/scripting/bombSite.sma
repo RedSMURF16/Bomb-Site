@@ -32,6 +32,7 @@
 *             Added noclip for players placing Bomb Sites for easier positioning
 *       v1.4: Bug fixes and config improvements.
 *       v1.5: Added per-Bomb Site configuration.
+*       v1.6: added FLAG_ACTIVE_DURATION, improved round-start logic.
 *
 */
 
@@ -52,10 +53,6 @@
     #define MAX_VALUE_LENGTH 64
 #endif
 
-#if !defined MAX_AUTHID_LENGTH
-    #define MAX_AUTHID_LENGTH 64
-#endif
-
 #if !defined MAX_RESOURCE_PATH_LENGTH
     #define MAX_RESOURCE_PATH_LENGTH 128
 #endif
@@ -72,7 +69,7 @@
 #define BOMB_KEY            8241
 #define BOMB_ARRAY_ITEM     pev_iuser1
 
-new const PLUGIN_VERSION[]       = "1.5"
+new const PLUGIN_VERSION[]       = "1.6"
 new const Float:DELAY_ON_CONNECT = 1.0
 new const ERROR_FILE[]           = "BombSite_ERRORS.log"
 
@@ -85,12 +82,13 @@ enum
 
 enum
 {
-    FLAG_RADAR          = (1 << 0),
-    FLAG_ICON           = (1 << 1),
-    FLAG_ACTIVE_DELAY   = (1 << 2),
+    FLAG_RADAR              = (1 << 0),
+    FLAG_ICON               = (1 << 1),
+    FLAG_ACTIVE_DELAY       = (1 << 2),
+    FLAG_ACTIVE_DURATION    = (1 << 3),
 
-    FLAG_SELECT         = (1 << 3),
-    FLAG_ACTIVE         = (1 << 4)
+    FLAG_SELECT             = (1 << 4),
+    FLAG_ACTIVE             = (1 << 5)
 }
 
 enum
@@ -528,7 +526,7 @@ stock ReadFile()
                         if ( equali(szKey, "SETTING_DEFAULT_FLAGS") )
                         {
                             g_eSettings[SETTING_DEFAULT_FLAGS] = read_flags(szValue)
-                            g_eSettings[SETTING_DEFAULT_FLAGS] &= 7
+                            g_eSettings[SETTING_DEFAULT_FLAGS] &= 15
                         }
                         else if ( equali(szKey, "SETTING_DEFAULT_RADAR") )
                         {
@@ -687,7 +685,7 @@ stock ReadFile()
                         if ( equali(szKey, "BOMB_FLAGS") )
                         {
                             eBomb[BOMB_FLAGS] = read_flags(szValue)
-                            eBomb[BOMB_FLAGS] &= 7
+                            eBomb[BOMB_FLAGS] &= 15
                         }
                         else if ( equali(szKey, "BOMB_RADAR") )
                         {
@@ -1390,7 +1388,10 @@ public bombTask()
             {
                 eBomb[BOMB_FLAGS] |= FLAG_ACTIVE
                 eBomb[BOMB_NEXT_ENABLE] = 0.0
-                eBomb[BOMB_NEXT_DISABLE] = fCurrentTime + random_float(eBomb[BOMB_ACTIVE_DURATION][0], eBomb[BOMB_ACTIVE_DURATION][1])
+
+                if ( eBomb[BOMB_FLAGS] & FLAG_ACTIVE_DURATION )
+                    eBomb[BOMB_NEXT_DISABLE] = fCurrentTime + random_float(eBomb[BOMB_ACTIVE_DURATION][0], eBomb[BOMB_ACTIVE_DURATION][1])
+
                 ArraySetArray(g_aBomb, i, eBomb)
 
                 if ( eBomb[BOMB_FLAGS] & FLAG_ICON )
@@ -1993,7 +1994,11 @@ stock bombReset(eBomb[BOMB])
     eBomb[BOMB_FLAGS] &= ~FLAG_ACTIVE
     eBomb[BOMB_NEXT_RADAR] = 0.0
     eBomb[BOMB_NEXT_ENABLE] = 0.0
-    eBomb[BOMB_NEXT_DISABLE] = 0.0
+
+    if ( eBomb[BOMB_FLAGS] & FLAG_ACTIVE_DURATION )
+        eBomb[BOMB_NEXT_DISABLE] = get_gametime() + random_float(eBomb[BOMB_ACTIVE_DURATION][0], eBomb[BOMB_ACTIVE_DURATION][1])
+    else
+        eBomb[BOMB_NEXT_DISABLE] = 0.0
 }
 
 stock bombSound(iEnt, iSound, iChan = CHAN_ITEM, bool:bPlayer = true, iFlags = 0, iPitch = PITCH_NORM)
