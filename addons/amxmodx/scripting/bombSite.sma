@@ -82,6 +82,19 @@ enum
 
 enum
 {
+    DTYPE_FLOAT,
+    DTYPE_FLOAT_RANGE,
+    DTYPE_INT,
+    DTYPE_BOOL,
+    DTYPE_FLAGS,
+    DTYPE_VECTOR,
+    DTYPE_STRING_MODEL,
+    DTYPE_STRING_SOUND,
+    DTYPE_STRING_SPRITE
+}
+
+enum
+{
     FLAG_RADAR              = (1 << 0),
     FLAG_ICON               = (1 << 1),
     FLAG_ACTIVE_DELAY       = (1 << 2),
@@ -152,8 +165,8 @@ enum _:MAIN_SETTINGS
     SETTING_SOUND_MENU_NAV[MAX_RESOURCE_PATH_LENGTH],
     SETTING_SOUND_MENU_REMOVE[MAX_RESOURCE_PATH_LENGTH],
     SETTING_SOUND_MENU_ALERT[MAX_RESOURCE_PATH_LENGTH],
-    Array:SETTING_SOUND_SUITCHARGE,
-    Array:SETTING_SOUND_BLIP2,
+    SETTING_SOUND_SUITCHARGE[MAX_RESOURCE_PATH_LENGTH],
+    SETTING_SOUND_BLIP2[MAX_RESOURCE_PATH_LENGTH],
 
     SETTING_BEAM,
     SETTING_BEAM_WIDTH,
@@ -315,8 +328,6 @@ public plugin_precache()
 {
     g_aBomb = ArrayCreate(BOMB)
     g_aBombConfig = ArrayCreate(BOMB)
-    g_eSettings[SETTING_SOUND_SUITCHARGE] = ArrayCreate(MAX_RESOURCE_PATH_LENGTH)
-    g_eSettings[SETTING_SOUND_BLIP2] = ArrayCreate(MAX_RESOURCE_PATH_LENGTH)
 
     ReadFile()
 }
@@ -325,8 +336,6 @@ public plugin_end()
 {
     ArrayDestroy(g_aBomb)
     ArrayDestroy(g_aBombConfig)
-    ArrayDestroy(g_eSettings[SETTING_SOUND_SUITCHARGE])
-    ArrayDestroy(g_eSettings[SETTING_SOUND_BLIP2])
 }
 
 public cmdMenu(id, iLevel, iCmd)
@@ -429,8 +438,6 @@ stock ReadFile()
             if ( is_user_connected(id))
                 UpdateData(id)
 
-        ArrayClear(g_eSettings[SETTING_SOUND_SUITCHARGE])
-        ArrayClear(g_eSettings[SETTING_SOUND_BLIP2])
         ArrayClear(g_aBombConfig)
         g_iBombConfig = 0
     }
@@ -525,220 +532,90 @@ stock ReadFile()
                     {
                         if ( equali(szKey, "SETTING_DEFAULT_FLAGS") )
                         {
-                            g_eSettings[SETTING_DEFAULT_FLAGS] = read_flags(szValue)
+                            parseSetting(DTYPE_FLAGS, szKey, charsmax(szKey), szValue, charsmax(szValue), g_eSettings[SETTING_DEFAULT_FLAGS], charsmax(g_eSettings[SETTING_DEFAULT_FLAGS]))
                             g_eSettings[SETTING_DEFAULT_FLAGS] &= 15
                         }
                         else if ( equali(szKey, "SETTING_DEFAULT_RADAR") )
-                        {
-                            g_eSettings[SETTING_DEFAULT_RADAR] = str_to_num(szValue)
-                            g_eSettings[SETTING_DEFAULT_RADAR] = clamp(g_eSettings[SETTING_DEFAULT_RADAR], TEAM_NONE, TEAM_BOTH)
-                        }
+                            parseSetting(DTYPE_INT, szKey, charsmax(szKey), szValue, charsmax(szValue), g_eSettings[SETTING_DEFAULT_RADAR], charsmax(g_eSettings[SETTING_DEFAULT_RADAR]))
                         else if ( equali(szKey, "SETTING_DEFAULT_ACTIVE_CHANCE") )
-                        {
-                            g_eSettings[SETTING_DEFAULT_ACTIVE_CHANCE] = str_to_float(szValue)
-                        }
+                            parseSetting(DTYPE_FLOAT, szKey, charsmax(szKey), szValue, charsmax(szValue), g_eSettings[SETTING_DEFAULT_ACTIVE_CHANCE], charsmax(g_eSettings[SETTING_DEFAULT_ACTIVE_CHANCE]))
                         else if ( equali(szKey, "SETTING_DEFAULT_ACTIVE_DELAY") )
-                        {
-                            strtok(szValue, szKey, charsmax(szKey), szValue, charsmax(szValue), ' ')
-                            g_eSettings[SETTING_DEFAULT_ACTIVE_DELAY][0] = str_to_float(szKey)
-                            g_eSettings[SETTING_DEFAULT_ACTIVE_DELAY][1] = str_to_float(szValue)
-                        }
+                            parseSetting(DTYPE_FLOAT_RANGE, szKey, charsmax(szKey), szValue, charsmax(szValue), g_eSettings[SETTING_DEFAULT_ACTIVE_DELAY], charsmax(g_eSettings[SETTING_DEFAULT_ACTIVE_DELAY]))
                         else if ( equali(szKey, "SETTING_DEFAULT_ACTIVE_DURATION") )
-                        {
-                            strtok(szValue, szKey, charsmax(szKey), szValue, charsmax(szValue), ' ')
-                            g_eSettings[SETTING_DEFAULT_ACTIVE_DURATION][0] = str_to_float(szKey)
-                            g_eSettings[SETTING_DEFAULT_ACTIVE_DURATION][1] = str_to_float(szValue)
-                        }
+                            parseSetting(DTYPE_FLOAT_RANGE, szKey, charsmax(szKey), szValue, charsmax(szValue), g_eSettings[SETTING_DEFAULT_ACTIVE_DURATION], charsmax(g_eSettings[SETTING_DEFAULT_ACTIVE_DURATION]))
                         else if ( equali(szKey, "SETTING_DEFAULT_ACTIVE_COOLDOWN") )
-                        {
-                            strtok(szValue, szKey, charsmax(szKey), szValue, charsmax(szValue), ' ')
-                            g_eSettings[SETTING_DEFAULT_ACTIVE_COOLDOWN][0] = str_to_float(szKey)
-                            g_eSettings[SETTING_DEFAULT_ACTIVE_COOLDOWN][1] = str_to_float(szValue)
-                        }
+                            parseSetting(DTYPE_FLOAT_RANGE, szKey, charsmax(szKey), szValue, charsmax(szValue), g_eSettings[SETTING_DEFAULT_ACTIVE_COOLDOWN], charsmax(g_eSettings[SETTING_DEFAULT_ACTIVE_COOLDOWN]))
                         else if ( equali(szKey, "SETTING_DEFAULT_ICON") )
-                        {
-                            copy(g_eSettings[SETTING_DEFAULT_ICON], charsmax(g_eSettings[SETTING_DEFAULT_ICON]), szValue)
-                            if ( !g_bFileWasRead ) precache_model(szValue)
-                        }
+                            parseSetting(DTYPE_STRING_MODEL, szKey, charsmax(szKey), szValue, charsmax(szValue), g_eSettings[SETTING_DEFAULT_ICON], charsmax(g_eSettings[SETTING_DEFAULT_ICON]))
                         else if ( equali(szKey, "SETTING_DEFAULT_ICON_SCALE") )
-                        {
-                            g_eSettings[SETTING_DEFAULT_ICON_SCALE] = str_to_float(szValue)
-                        }
+                            parseSetting(DTYPE_FLOAT, szKey, charsmax(szKey), szValue, charsmax(szValue), g_eSettings[SETTING_DEFAULT_ICON_SCALE], charsmax(g_eSettings[SETTING_DEFAULT_ICON_SCALE]))
                         else if ( equali(szKey, "SETTING_DEFAULT_ICON_ALPHA") )
-                        {
-                            g_eSettings[SETTING_DEFAULT_ICON_ALPHA] = str_to_num(szValue)
-                        }
+                            parseSetting(DTYPE_INT, szKey, charsmax(szKey), szValue, charsmax(szValue), g_eSettings[SETTING_DEFAULT_ICON_ALPHA], charsmax(g_eSettings[SETTING_DEFAULT_ICON_ALPHA]))
                         else if ( equali(szKey, "SETTING_BOMB_LOAD") )
-                        {
-                            g_eSettings[SETTING_BOMB_LOAD] = bool:str_to_num(szValue)
-                        }
+                            parseSetting(DTYPE_BOOL, szKey, charsmax(szKey), szValue, charsmax(szValue), g_eSettings[SETTING_BOMB_LOAD], charsmax(g_eSettings[SETTING_BOMB_LOAD]))
                         else if ( equali(szKey, "SETTING_BOMB_DEFAULT") )
-                        {
-                            g_eSettings[SETTING_BOMB_DEFAULT] = bool:str_to_num(szValue)
-                        }
+                            parseSetting(DTYPE_BOOL, szKey, charsmax(szKey), szValue, charsmax(szValue), g_eSettings[SETTING_BOMB_DEFAULT], charsmax(g_eSettings[SETTING_BOMB_DEFAULT]))
                         else if ( equali(szKey, "SETTING_BOMB_ANYWHERE") )
-                        {
-                            g_eSettings[SETTING_BOMB_ANYWHERE] = bool:str_to_num(szValue)
-                        }
+                            parseSetting(DTYPE_BOOL, szKey, charsmax(szKey), szValue, charsmax(szValue), g_eSettings[SETTING_BOMB_ANYWHERE], charsmax(g_eSettings[SETTING_BOMB_ANYWHERE]))
                         else if ( equali(szKey, "SETTING_OFFSET_BASE") )
-                        {
-                            g_eSettings[SETTING_OFFSET_BASE] = str_to_float(szValue)
-                        }
+                            parseSetting(DTYPE_FLOAT, szKey, charsmax(szKey), szValue, charsmax(szValue), g_eSettings[SETTING_OFFSET_BASE], charsmax(g_eSettings[SETTING_OFFSET_BASE]))
                         else if ( equali(szKey, "SETTING_OFFSET") )
-                        {
-                            strtok(szValue, szKey, charsmax(szKey), szValue, charsmax(szValue), ' ')
-                            g_eSettings[SETTING_OFFSET][0] = str_to_float(szKey)
-                            g_eSettings[SETTING_OFFSET][1] = str_to_float(szValue)
-                        }
+                            parseSetting(DTYPE_FLOAT_RANGE, szKey, charsmax(szKey), szValue, charsmax(szValue), g_eSettings[SETTING_OFFSET], charsmax(g_eSettings[SETTING_OFFSET]))
                         else if ( equali(szKey, "SETTING_OFFSET_STEP") )
-                        {
-                            g_eSettings[SETTING_OFFSET_STEP] = str_to_float(szValue)
-                        }
+                            parseSetting(DTYPE_FLOAT, szKey, charsmax(szKey), szValue, charsmax(szValue), g_eSettings[SETTING_OFFSET_STEP], charsmax(g_eSettings[SETTING_OFFSET_STEP]))
                         else if ( equali(szKey, "SETTING_OFFSET_FREQ") )
-                        {
-                            g_eSettings[SETTING_OFFSET_FREQ] = str_to_float(szValue)
-                        }
+                            parseSetting(DTYPE_FLOAT, szKey, charsmax(szKey), szValue, charsmax(szValue), g_eSettings[SETTING_OFFSET_FREQ], charsmax(g_eSettings[SETTING_OFFSET_FREQ]))
                         else if ( equali(szKey, "SETTING_GHOST_FREQ") )
-                        {
-                            g_eSettings[SETTING_GHOST_FREQ] = str_to_float(szValue)
-                        }
+                            parseSetting(DTYPE_FLOAT, szKey, charsmax(szKey), szValue, charsmax(szValue), g_eSettings[SETTING_GHOST_FREQ], charsmax(g_eSettings[SETTING_GHOST_FREQ]))
                         else if ( equali(szKey, "SETTING_SIZE_BASE") )
-                        {
-                            g_eSettings[SETTING_SIZE_BASE] = str_to_float(szValue)
-                        }
+                            parseSetting(DTYPE_FLOAT, szKey, charsmax(szKey), szValue, charsmax(szValue), g_eSettings[SETTING_SIZE_BASE], charsmax(g_eSettings[SETTING_SIZE_BASE]))
                         else if ( equali(szKey, "SETTING_SIZE_HEIGHT") )
-                        {
-                            strtok(szValue, szKey, charsmax(szKey), szValue, charsmax(szValue), ' ')
-                            g_eSettings[SETTING_SIZE_HEIGHT][0] = str_to_float(szKey)
-                            g_eSettings[SETTING_SIZE_HEIGHT][1] = str_to_float(szValue)
-                        }
+                            parseSetting(DTYPE_FLOAT_RANGE, szKey, charsmax(szKey), szValue, charsmax(szValue), g_eSettings[SETTING_SIZE_HEIGHT], charsmax(g_eSettings[SETTING_SIZE_HEIGHT]))
                         else if ( equali(szKey, "SETTING_SIZE_WIDTH") )
-                        {
-                            strtok(szValue, szKey, charsmax(szKey), szValue, charsmax(szValue), ' ')
-                            g_eSettings[SETTING_SIZE_WIDTH][0] = str_to_float(szKey)
-                            g_eSettings[SETTING_SIZE_WIDTH][1] = str_to_float(szValue)
-                        }
+                            parseSetting(DTYPE_FLOAT_RANGE, szKey, charsmax(szKey), szValue, charsmax(szValue), g_eSettings[SETTING_SIZE_WIDTH], charsmax(g_eSettings[SETTING_SIZE_WIDTH]))
                         else if ( equali(szKey, "SETTING_SIZE_DEPTH") )
-                        {
-                            strtok(szValue, szKey, charsmax(szKey), szValue, charsmax(szValue), ' ')
-                            g_eSettings[SETTING_SIZE_DEPTH][0] = str_to_float(szKey)
-                            g_eSettings[SETTING_SIZE_DEPTH][1] = str_to_float(szValue)
-                        }
+                            parseSetting(DTYPE_FLOAT_RANGE, szKey, charsmax(szKey), szValue, charsmax(szValue), g_eSettings[SETTING_SIZE_DEPTH], charsmax(g_eSettings[SETTING_SIZE_DEPTH]))
                         else if ( equali(szKey, "SETTING_SOUND_MENU_NAV") )
-                        {
-                            copy(g_eSettings[SETTING_SOUND_MENU_NAV], charsmax(g_eSettings[SETTING_SOUND_MENU_NAV]), szValue)
-                            if ( !g_bFileWasRead ) precache_sound(szValue)
-                        }
+                            parseSetting(DTYPE_STRING_SOUND, szKey, charsmax(szKey), szValue, charsmax(szValue), g_eSettings[SETTING_SOUND_MENU_NAV], charsmax(g_eSettings[SETTING_SOUND_MENU_NAV]))
                         else if ( equali(szKey, "SETTING_SOUND_MENU_REMOVE") )
-                        {
-                            copy(g_eSettings[SETTING_SOUND_MENU_REMOVE], charsmax(g_eSettings[SETTING_SOUND_MENU_REMOVE]), szValue)
-                            if ( !g_bFileWasRead ) precache_sound(szValue)
-                        }
+                            parseSetting(DTYPE_STRING_SOUND, szKey, charsmax(szKey), szValue, charsmax(szValue), g_eSettings[SETTING_SOUND_MENU_REMOVE], charsmax(g_eSettings[SETTING_SOUND_MENU_REMOVE]))
                         else if ( equali(szKey, "SETTING_SOUND_MENU_ALERT") )
-                        {
-                            copy(g_eSettings[SETTING_SOUND_MENU_ALERT], charsmax(g_eSettings[SETTING_SOUND_MENU_ALERT]), szValue)
-                            if ( !g_bFileWasRead ) precache_sound(szValue)
-                        }
+                            parseSetting(DTYPE_STRING_SOUND, szKey, charsmax(szKey), szValue, charsmax(szValue), g_eSettings[SETTING_SOUND_MENU_ALERT], charsmax(g_eSettings[SETTING_SOUND_MENU_ALERT]))
                         else if ( equali(szKey, "SETTING_SOUND_SUITCHARGE") )
-                        {
-                            ArrayPushString(g_eSettings[SETTING_SOUND_SUITCHARGE], szValue)
-                            if ( !g_bFileWasRead ) precache_sound(szValue)
-                        }
+                            parseSetting(DTYPE_STRING_SOUND, szKey, charsmax(szKey), szValue, charsmax(szValue), g_eSettings[SETTING_SOUND_SUITCHARGE], charsmax(g_eSettings[SETTING_SOUND_SUITCHARGE]))
                         else if ( equali(szKey, "SETTING_SOUND_BLIP2") )
-                        {
-                            ArrayPushString(g_eSettings[SETTING_SOUND_BLIP2], szValue)
-                            if ( !g_bFileWasRead ) precache_sound(szValue)
-                        }
+                            parseSetting(DTYPE_STRING_SOUND, szKey, charsmax(szKey), szValue, charsmax(szValue), g_eSettings[SETTING_SOUND_BLIP2], charsmax(g_eSettings[SETTING_SOUND_BLIP2]))
                         else if ( equali(szKey, "SETTING_BEAM") )
-                        {
-                            if ( !g_bFileWasRead ) g_eSettings[SETTING_BEAM] = precache_model(szValue)
-                        }
+                            parseSetting(DTYPE_STRING_SPRITE, szKey, charsmax(szKey), szValue, charsmax(szValue), g_eSettings[SETTING_BEAM], charsmax(g_eSettings[SETTING_BEAM]))
                         else if ( equali(szKey, "SETTING_BEAM_WIDTH") )
-                        {
-                            g_eSettings[SETTING_BEAM_WIDTH] = str_to_num(szValue)
-                        }
+                            parseSetting(DTYPE_INT, szKey, charsmax(szKey), szValue, charsmax(szValue), g_eSettings[SETTING_BEAM_WIDTH], charsmax(g_eSettings[SETTING_BEAM_WIDTH]))
                         else if ( equali(szKey, "SETTING_BEAM_ALPHA") )
-                        {
-                            g_eSettings[SETTING_BEAM_ALPHA] = str_to_num(szValue)
-                        }
+                            parseSetting(DTYPE_INT, szKey, charsmax(szKey), szValue, charsmax(szValue), g_eSettings[SETTING_BEAM_ALPHA], charsmax(g_eSettings[SETTING_BEAM_ALPHA]))
                         else if ( equali(szKey, "SETTING_COLOR_ACTIVE") )
-                        {
-                            strtok(szValue, szKey, charsmax(szKey), szValue, charsmax(szValue), ' ')
-                            g_eSettings[SETTING_COLOR_ACTIVE][0] = str_to_num(szKey)
-
-                            strtok(szValue, szKey, charsmax(szKey), szValue, charsmax(szValue), ' ')
-                            g_eSettings[SETTING_COLOR_ACTIVE][1] = str_to_num(szKey)
-                            g_eSettings[SETTING_COLOR_ACTIVE][2] = str_to_num(szValue)
-                        }
+                            parseSetting(DTYPE_VECTOR, szKey, charsmax(szKey), szValue, charsmax(szValue), g_eSettings[SETTING_COLOR_ACTIVE], charsmax(g_eSettings[SETTING_COLOR_ACTIVE]))
                         else if ( equali(szKey, "SETTING_COLOR_INACTIVE") )
-                        {
-                            strtok(szValue, szKey, charsmax(szKey), szValue, charsmax(szValue), ' ')
-                            g_eSettings[SETTING_COLOR_INACTIVE][0] = str_to_num(szKey)
-
-                            strtok(szValue, szKey, charsmax(szKey), szValue, charsmax(szValue), ' ')
-                            g_eSettings[SETTING_COLOR_INACTIVE][1] = str_to_num(szKey)
-                            g_eSettings[SETTING_COLOR_INACTIVE][2] = str_to_num(szValue)
-                        }
+                            parseSetting(DTYPE_VECTOR, szKey, charsmax(szKey), szValue, charsmax(szValue), g_eSettings[SETTING_COLOR_INACTIVE], charsmax(g_eSettings[SETTING_COLOR_INACTIVE]))
                     }
                     case SECTION_BOMB:
                     {
                         if ( equali(szKey, "BOMB_FLAGS") )
-                        {
-                            eBomb[BOMB_FLAGS] = read_flags(szValue)
-                            eBomb[BOMB_FLAGS] &= 15
-                        }
+                            parseSetting(DTYPE_FLAGS, szKey, charsmax(szKey), szValue, charsmax(szValue), eBomb[BOMB_FLAGS], charsmax(eBomb[BOMB_FLAGS]), g_eSettings[SETTING_DEFAULT_FLAGS])
                         else if ( equali(szKey, "BOMB_RADAR") )
-                        {
-                            eBomb[BOMB_RADAR] = str_to_num(szValue)
-                            eBomb[BOMB_RADAR] = clamp(eBomb[BOMB_RADAR], TEAM_NONE, TEAM_BOTH)
-                        }
+                            parseSetting(DTYPE_INT, szKey, charsmax(szKey), szValue, charsmax(szValue), eBomb[BOMB_RADAR], charsmax(eBomb[BOMB_RADAR]), g_eSettings[SETTING_DEFAULT_RADAR])
                         else if ( equali(szKey, "BOMB_ACTIVE_CHANCE") )
-                        {
-                            eBomb[BOMB_ACTIVE_CHANCE] = str_to_float(szValue)
-                            if ( eBomb[BOMB_ACTIVE_CHANCE] < 0.0 ) eBomb[BOMB_ACTIVE_CHANCE] = g_eSettings[SETTING_DEFAULT_ACTIVE_CHANCE]
-                        }
+                            parseSetting(DTYPE_FLOAT, szKey, charsmax(szKey), szValue, charsmax(szValue), eBomb[BOMB_ACTIVE_CHANCE], charsmax(eBomb[BOMB_ACTIVE_CHANCE]), g_eSettings[SETTING_DEFAULT_ACTIVE_CHANCE])
                         else if ( equali(szKey, "BOMB_ACTIVE_DELAY") )
-                        {
-                            strtok(szValue, szKey, charsmax(szKey), szValue, charsmax(szValue), ' ')
-                            eBomb[BOMB_ACTIVE_DELAY][0] = str_to_float(szKey)
-                            eBomb[BOMB_ACTIVE_DELAY][1] = str_to_float(szValue)
-
-                            if ( eBomb[BOMB_ACTIVE_DELAY][0] < 0.0 ) eBomb[BOMB_ACTIVE_DELAY][0] = g_eSettings[SETTING_DEFAULT_ACTIVE_DELAY][0]
-                            if ( eBomb[BOMB_ACTIVE_DELAY][1] < 0.0 ) eBomb[BOMB_ACTIVE_DELAY][1] = g_eSettings[SETTING_DEFAULT_ACTIVE_DELAY][1]
-                        }
+                            parseSetting(DTYPE_FLOAT_RANGE, szKey, charsmax(szKey), szValue, charsmax(szValue), eBomb[BOMB_ACTIVE_DELAY], charsmax(eBomb[BOMB_ACTIVE_DELAY]), g_eSettings[SETTING_DEFAULT_ACTIVE_DELAY])
                         else if ( equali(szKey, "BOMB_ACTIVE_DURATION") )
-                        {
-                            strtok(szValue, szKey, charsmax(szKey), szValue, charsmax(szValue), ' ')
-                            eBomb[BOMB_ACTIVE_DURATION][0] = str_to_float(szKey)
-                            eBomb[BOMB_ACTIVE_DURATION][1] = str_to_float(szValue)
-
-                            if ( eBomb[BOMB_ACTIVE_DURATION][0] < 0.0 ) eBomb[BOMB_ACTIVE_DURATION][0] = g_eSettings[SETTING_DEFAULT_ACTIVE_DURATION][0]
-                            if ( eBomb[BOMB_ACTIVE_DURATION][1] < 0.0 ) eBomb[BOMB_ACTIVE_DURATION][1] = g_eSettings[SETTING_DEFAULT_ACTIVE_DURATION][1]
-                        }
+                            parseSetting(DTYPE_FLOAT_RANGE, szKey, charsmax(szKey), szValue, charsmax(szValue), eBomb[BOMB_ACTIVE_DURATION], charsmax(eBomb[BOMB_ACTIVE_DURATION]), g_eSettings[SETTING_DEFAULT_ACTIVE_DURATION])
                         else if ( equali(szKey, "BOMB_ACTIVE_COOLDOWN") )
-                        {
-                            strtok(szValue, szKey, charsmax(szKey), szValue, charsmax(szValue), ' ')
-                            eBomb[BOMB_ACTIVE_COOLDOWN][0] = str_to_float(szKey)
-                            eBomb[BOMB_ACTIVE_COOLDOWN][1] = str_to_float(szValue)
-
-                            if ( eBomb[BOMB_ACTIVE_COOLDOWN][0] < 0.0 ) eBomb[BOMB_ACTIVE_COOLDOWN][0] = g_eSettings[SETTING_DEFAULT_ACTIVE_COOLDOWN][0]
-                            if ( eBomb[BOMB_ACTIVE_COOLDOWN][1] < 0.0 ) eBomb[BOMB_ACTIVE_COOLDOWN][1] = g_eSettings[SETTING_DEFAULT_ACTIVE_COOLDOWN][1]
-                        }
+                            parseSetting(DTYPE_FLOAT_RANGE, szKey, charsmax(szKey), szValue, charsmax(szValue), eBomb[BOMB_ACTIVE_COOLDOWN], charsmax(eBomb[BOMB_ACTIVE_COOLDOWN]), g_eSettings[SETTING_DEFAULT_ACTIVE_COOLDOWN])
                         else if ( equali(szKey, "BOMB_ICON_SCALE") )
-                        {
-                            eBomb[BOMB_ICON_SCALE] = str_to_float(szValue)
-                            if ( eBomb[BOMB_ICON_SCALE] < 0.0 ) eBomb[BOMB_ICON_SCALE] = g_eSettings[SETTING_DEFAULT_ICON_SCALE]
-                        }
+                            parseSetting(DTYPE_FLOAT, szKey, charsmax(szKey), szValue, charsmax(szValue), eBomb[BOMB_ICON_SCALE], charsmax(eBomb[BOMB_ICON_SCALE]), g_eSettings[SETTING_DEFAULT_ICON_SCALE])
                         else if ( equali(szKey, "BOMB_ICON_ALPHA") )
-                        {
-                            eBomb[BOMB_ICON_ALPHA] = str_to_num(szValue)
-                            if ( eBomb[BOMB_ICON_ALPHA] < 0 ) eBomb[BOMB_ICON_ALPHA] = g_eSettings[SETTING_DEFAULT_ICON_ALPHA]
-                        }
+                            parseSetting(DTYPE_INT, szKey, charsmax(szKey), szValue, charsmax(szValue), eBomb[BOMB_ICON_ALPHA], charsmax(eBomb[BOMB_ICON_ALPHA]), g_eSettings[SETTING_DEFAULT_ICON_ALPHA])
                         else if ( equali(szKey, "BOMB_ICON_SPRITE") )
-                        {
-                            copy(eBomb[BOMB_ICON_SPRITE], charsmax(eBomb[BOMB_ICON_SPRITE]), szValue)
-                            if ( !g_bFileWasRead ) precache_model(szValue)
-                        }
+                            parseSetting(DTYPE_STRING_MODEL, szKey, charsmax(szKey), szValue, charsmax(szValue), eBomb[BOMB_ICON_SPRITE], charsmax(eBomb[BOMB_ICON_SPRITE]))
                     }
                 }
             }
@@ -1342,14 +1219,14 @@ public menuHandlerScale(id, menu, item)
 
 public bombTask()
 {
-    new eBomb[BOMB], iEnt, Float:fCurrentTime
+    new eBomb[BOMB], Float:fCurrentTime
     fCurrentTime = get_gametime()
 
     for ( new id = 1; id <= g_iMaxPlayers; id ++ )
     {
-        iEnt = g_ePlayerData[id][PDATA_BOMB_GHOST]
-
-        if ( !iEnt || bombGet(eBomb, iEnt) == -1 )
+        if ( !is_user_alive(id)
+        || !g_ePlayerData[id][PDATA_BOMB_GHOST]
+        || bombGet(eBomb, g_ePlayerData[id][PDATA_BOMB_GHOST]) == -1 )
             continue
 
         bombTrace(eBomb, id)
@@ -1420,7 +1297,7 @@ stock iconCreate(eBomb[BOMB], Float:fOrigin[3])
     engfunc(EngFunc_SetModel, iEnt, eBomb[BOMB_ICON_SPRITE])
 
     set_pev(iEnt, pev_scale, eBomb[BOMB_ICON_SCALE])
-    set_rendering(iEnt, kRenderNormal, iColor[0], iColor[1], iColor[2], kRenderTransAdd, eBomb[BOMB_ICON_ALPHA])
+    set_rendering(iEnt, kRenderFxNone, iColor[0], iColor[1], iColor[2], kRenderTransAdd, eBomb[BOMB_ICON_ALPHA])
 
     dllfunc(DLLFunc_Spawn, iEnt)
     return iEnt
@@ -2010,8 +1887,8 @@ stock bombSound(iEnt, iSound, iChan = CHAN_ITEM, bool:bPlayer = true, iFlags = 0
         case SOUND_MENU_NAV:        copy(szSample, charsmax(szSample), g_eSettings[SETTING_SOUND_MENU_NAV])
         case SOUND_MENU_REMOVE:     copy(szSample, charsmax(szSample), g_eSettings[SETTING_SOUND_MENU_REMOVE])
         case SOUND_MENU_ALERT:      copy(szSample, charsmax(szSample), g_eSettings[SETTING_SOUND_MENU_ALERT])
-        case SOUND_ENABLED:         ArrayGetString(g_eSettings[SETTING_SOUND_SUITCHARGE],   random(ArraySize(g_eSettings[SETTING_SOUND_SUITCHARGE])),   szSample, charsmax(szSample))
-        case SOUND_DISABLED:        ArrayGetString(g_eSettings[SETTING_SOUND_BLIP2],        random(ArraySize(g_eSettings[SETTING_SOUND_BLIP2])),        szSample, charsmax(szSample))
+        case SOUND_ENABLED:         copy(szSample, charsmax(szSample), g_eSettings[SETTING_SOUND_SUITCHARGE])
+        case SOUND_DISABLED:        copy(szSample, charsmax(szSample), g_eSettings[SETTING_SOUND_BLIP2])
     }
 
     if ( bPlayer )
@@ -2058,6 +1935,64 @@ stock bombKill(iEnt)
 {
     if (pev_valid(iEnt))
         set_pev(iEnt, pev_flags, pev(iEnt, pev_flags) | FL_KILLME)
+}
+
+stock parseSetting(iType, szKey[], iKeyLen, szValue[], iValueLen, any:output[], iOutputLen, const any:fallback[] = {0.0, 0.0})
+{
+    switch ( iType )
+    {
+        case DTYPE_FLOAT_RANGE:
+        {
+            strtok(szValue, szKey, iKeyLen, szValue, iValueLen, ' ')
+            output[0] = str_to_float(szKey)
+            output[1] = str_to_float(szValue)
+
+            if ( output[0] < 0.0 ) output[0] = fallback[0]
+            if ( output[1] < 0.0 ) output[1] = fallback[1]
+        }
+        case DTYPE_FLOAT:
+        {
+            output[0] = str_to_float(szValue)
+            if ( output[0] < 0.0 ) output[0] = fallback[0]
+        }
+        case DTYPE_INT:
+        {
+            output[0] = str_to_num(szValue)
+            if ( output[0] < 0 ) output[0] = fallback[0]
+        }
+        case DTYPE_BOOL:
+        {
+            output[0] = bool:str_to_num(szValue)
+        }
+        case DTYPE_FLAGS:
+        {
+            output[0] = read_flags(szValue)
+        }
+        case DTYPE_VECTOR:
+        {
+            strtok(szValue, szKey, iKeyLen, szValue, iValueLen, ' ')
+            output[0] = str_to_num(szKey)
+
+            strtok(szValue, szKey, iKeyLen, szValue, iValueLen, ' ')
+            output[1] = str_to_num(szKey)
+            output[2] = str_to_num(szValue)
+        }
+        case DTYPE_STRING_MODEL:
+        {
+            copy(output, iOutputLen, szValue)
+            if ( !g_bFileWasRead ) precache_model(szValue)
+        }
+        case DTYPE_STRING_SOUND:
+        {
+            copy(output, iOutputLen, szValue)
+            if ( !g_bFileWasRead ) precache_sound(szValue)
+        }
+        case DTYPE_STRING_SPRITE:
+        {
+            if ( !g_bFileWasRead )
+                output[0] = precache_model(szValue)
+        }
+    }
 }
 
 stock LogConfigError(const iLine, const szText[], any:...)
