@@ -207,6 +207,7 @@ enum _:PLAYER_DATA
 {
     PDATA_BOMB_GHOST,
     PDATA_BOMB_MENU,
+    bool:PDATA_BOMB_ACTION,
     bool:PDATA_SCALE_UP,
     PDATA_SCALE_FACTOR,
     Float:PDATA_OFFSET,
@@ -658,6 +659,7 @@ public client_disconnected(id)
     }
 
     g_ePlayerData[id][PDATA_BOMB_GHOST]  = 0
+    g_ePlayerData[id][PDATA_BOMB_ACTION] = false
     g_ePlayerData[id][PDATA_BOMB_MENU]   = 0
 }
 
@@ -855,6 +857,7 @@ public menuStatus(id, iMenu)
     formatex(szItem, charsmax(szItem), "%L", id, "BOMB_STATUS_ALL_DEFAULT")
     menu_additem(iMenu, szItem)
 
+    g_ePlayerData[id][PDATA_BOMB_ACTION] = true
     eBomb[BOMB_FLAGS] |= FLAG_SELECT
     ArraySetArray(g_aBomb, g_ePlayerData[id][PDATA_BOMB_MENU], eBomb)
 }
@@ -972,6 +975,7 @@ public menuHandlerStatus(id, menu, item)
         }
         default:
         {
+            g_ePlayerData[id][PDATA_BOMB_ACTION] = false
             g_ePlayerData[id][PDATA_BOMB_MENU] = 0
         }
     }
@@ -994,6 +998,7 @@ public menuRemove(id, iMenu)
     formatex(szItem, charsmax(szItem), "%L", id, "BOMB_REMOVE_ALL")
     menu_additem(iMenu, szItem)
 
+    g_ePlayerData[id][PDATA_BOMB_ACTION] = true
     eBomb[BOMB_FLAGS] |= FLAG_SELECT
     ArraySetArray(g_aBomb, g_ePlayerData[id][PDATA_BOMB_MENU], eBomb)
 }
@@ -1059,6 +1064,7 @@ public menuHandlerRemove(id, menu, item)
         }
         default:
         {
+            g_ePlayerData[id][PDATA_BOMB_ACTION] = false
             g_ePlayerData[id][PDATA_BOMB_MENU] = 0
         }
     }
@@ -1183,6 +1189,7 @@ public menuHandlerScale(id, menu, item)
         {
             bombTrace(eBomb, id)
             g_ePlayerData[id][PDATA_BOMB_GHOST] = 0
+            g_ePlayerData[id][PDATA_BOMB_ACTION] = false
 
             if ( eBomb[BOMB_FLAGS] & FLAG_ACTIVE_DELAY )
                 eBomb[BOMB_NEXT_ENABLE] = fCurrentTime + random_float(eBomb[BOMB_ACTIVE_DELAY][0], eBomb[BOMB_ACTIVE_DELAY][1])
@@ -1210,6 +1217,7 @@ public menuHandlerScale(id, menu, item)
             bombKill(eBomb[BOMB_ID])
             bombRemove(iItem)
             g_ePlayerData[id][PDATA_BOMB_GHOST] = 0
+            g_ePlayerData[id][PDATA_BOMB_ACTION] = false
         }
     }
 
@@ -1224,12 +1232,18 @@ public bombTask()
 
     for ( new id = 1; id <= g_iMaxPlayers; id ++ )
     {
-        if ( !is_user_alive(id)
-        || !g_ePlayerData[id][PDATA_BOMB_GHOST]
-        || bombGet(eBomb, g_ePlayerData[id][PDATA_BOMB_GHOST]) == -1 )
+        if ( !is_user_alive(id) )
             continue
 
-        bombTrace(eBomb, id)
+        if ( !g_ePlayerData[id][PDATA_BOMB_GHOST] )
+        {
+            if ( g_ePlayerData[id][PDATA_BOMB_ACTION] )
+                bombCheck(id)
+        }
+        else if ( bombGet(eBomb, g_ePlayerData[id][PDATA_BOMB_GHOST]) != -1 )
+        {
+            bombTrace(eBomb, id)
+        }
     }
 
     for ( new i = 0; i < g_iBomb; i ++ )
@@ -1320,6 +1334,7 @@ public bombCreate(id, iItem)
     if ( id )
     {
         g_ePlayerData[id][PDATA_BOMB_GHOST] = iEnt
+        g_ePlayerData[id][PDATA_BOMB_ACTION] = true
         g_ePlayerData[id][PDATA_SCALE_UP] = true
         g_ePlayerData[id][PDATA_SCALE_FACTOR] = 0
         g_ePlayerData[id][PDATA_OFFSET] = g_eSettings[SETTING_OFFSET_BASE]
@@ -1414,10 +1429,7 @@ public loadData()
 
     iFile = fopen(szFile, "rt")
     if ( !iFile )
-    {
-        console_print(0, "%L %L", 0, "BOMB_CHAT_TAG", 0, "BOMB_CHAT_NO_DATA")
         return PLUGIN_HANDLED
-    }
 
     while( !feof(iFile) )
     {
@@ -1556,6 +1568,8 @@ public fwdSpawn(iEnt)
 
 public fwdKilled(id, iAttacker, bGib)
 {
+    g_ePlayerData[id][PDATA_BOMB_ACTION] = false
+
     if ( g_ePlayerData[id][PDATA_BOMB_GHOST] )
     {
         new eBomb[BOMB], iItem
@@ -1677,6 +1691,64 @@ stock bombTrace(eBomb[BOMB], id)
     bombBeam(eBomb)
 
     set_pev(eBomb[BOMB_ID], pev_origin, eBomb[BOMB_ORIGIN])
+}
+
+stock bombCheck(id)
+{
+    new eBomb[BOMB], Float:fVec1[3], Float:fVec2[3], Float:fForward[3]
+    new iBest, Float:fBestDist, Float:fTraceLength, Float:fDot, Float:fDist
+
+    pev(id, pev_origin, fVec1)
+    pev(id, pev_view_ofs, fVec2)
+    xs_vec_add(fVec1, fVec2, fVec1)
+
+    pev(id, pev_v_angle, fForward)
+    engfunc(EngFunc_MakeVectors, fForward)
+    global_get(glb_v_forward, fForward)
+
+    xs_vec_mul_scalar(fForward, 9999.9, fVec2)
+    xs_vec_add(fVec2, fVec1, fVec2)
+
+    engfunc(EngFunc_TraceLine, fVec1, fVec2, DONT_IGNORE_MONSTERS, id, 0)
+    get_tr2(0, TR_vecEndPos, fVec2)
+
+    iBest = -1
+    fBestDist = 20.0
+    fTraceLength = get_distance_f(fVec1, fVec2)
+
+    for ( new i = 0; i < g_iBomb; i ++ )
+    {
+        ArrayGetArray(g_aBomb, i, eBomb)
+        xs_vec_sub(eBomb[BOMB_ORIGIN], fVec1, fVec2)
+        fDot = xs_vec_dot(fVec2, fForward)
+
+        if ( fDot < 0.0 || fDot > fTraceLength )
+            continue
+
+        xs_vec_copy(fForward, fVec2)
+        xs_vec_mul_scalar(fVec2, fDot, fVec2)
+        xs_vec_add(fVec2, fVec1, fVec2)
+
+        fDist = get_distance_f(eBomb[BOMB_ORIGIN], fVec2)
+        if ( fDist < fBestDist )
+        {
+            fBestDist = fDist
+            iBest = i
+        }
+    }
+
+    if ( iBest != -1
+    && g_ePlayerData[id][PDATA_BOMB_MENU] != iBest )
+    {
+        ArrayGetArray(g_aBomb, g_ePlayerData[id][PDATA_BOMB_MENU], eBomb)
+        eBomb[BOMB_FLAGS] &= ~FLAG_SELECT
+        ArraySetArray(g_aBomb, g_ePlayerData[id][PDATA_BOMB_MENU], eBomb)
+
+        ArrayGetArray(g_aBomb, iBest, eBomb)
+        eBomb[BOMB_FLAGS] |= FLAG_SELECT
+        ArraySetArray(g_aBomb, iBest, eBomb)
+        g_ePlayerData[id][PDATA_BOMB_MENU] = iBest
+    }
 }
 
 stock bombSetBox(eBomb[BOMB], bool:bSetCorners = false)

@@ -2,9 +2,6 @@
 BOMB_CHAT_TAG                       = ^4[BOMB SITE]^1
 BOMB_CHAT_LIMIT                     = You've reached the maximum number of Bomb Sites ^4%d
 BOMB_CHAT_NO_BOMB                   = There are no Bomb Sites available
-BOMB_CHAT_NO_DATA                   = Bomb Sites data hasn't been found
-BOMB_CHAT_NO_DEFAULT                = There are no default Bomb Sites on this map
-BOMB_CHAT_NO_PLACE                  = You can't place Bomb Sites on this map
 BOMB_CHAT_CREATE_NEW                = ^3%s ^1created
 BOMB_CHAT_STATUS_CURRENT            = ^3%s ^1is %L
 BOMB_CHAT_STATUS_ALL_ENABLED        = All Bomb Sites are now enabled
