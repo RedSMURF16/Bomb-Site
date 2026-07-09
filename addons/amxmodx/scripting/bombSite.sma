@@ -65,9 +65,12 @@
     #define MAX_PLATFORM_PATH_LENGTH 256
 #endif
 
-#define MAX_ENT             32
-#define BOMB_KEY            8241
-#define BOMB_ARRAY_ITEM     pev_iuser1
+#define MAX_ENT                     32
+#define BOMB_KEY                    8241
+#define BOMB_ARRAY_ITEM             pev_iuser1
+
+#define XO_CBASEPLAYER              5
+#define XO_CBASEPLAYERWEAPON        4
 
 new const PLUGIN_VERSION[]       = "1.6"
 new const Float:DELAY_ON_CONNECT = 1.0
@@ -262,6 +265,16 @@ enum
     SCALE_FACTOR = 4,
     SCALE_MODE,
     SCALE_PLACE
+}
+
+new Float:g_fDirections[][] =
+{
+    {-1.0, 0.0, 0.0},
+    {1.0, 0.0, 0.0},
+    {0.0, -1.0, 0.0},
+    {0.0, 1.0, 0.0},
+    {0.0, 0.0, -1.0},
+    {0.0, 0.0, 1.0}
 }
 
 new g_szMenuHandler[][] =
@@ -970,6 +983,14 @@ public menuHandlerStatus(id, menu, item)
             bombSound(id, SOUND_MENU_ALERT)
             bombMenu(id, MENU_STATUS)
         }
+        case MENU_EXIT:
+        {
+            bombSound(id, SOUND_MENU_NAV)
+            bombMenu(id, MENU_ROOT)
+
+            g_ePlayerData[id][PDATA_BOMB_ACTION] = false
+            g_ePlayerData[id][PDATA_BOMB_MENU] = 0
+        }
         default:
         {
             g_ePlayerData[id][PDATA_BOMB_ACTION] = false
@@ -1059,6 +1080,14 @@ public menuHandlerRemove(id, menu, item)
             bombSound(id, SOUND_MENU_ALERT)
             bombMenu(id, MENU_ROOT)
         }
+        case MENU_EXIT:
+        {
+            bombSound(id, SOUND_MENU_NAV)
+            bombMenu(id, MENU_ROOT)
+
+            g_ePlayerData[id][PDATA_BOMB_ACTION] = false
+            g_ePlayerData[id][PDATA_BOMB_MENU] = 0
+        }
         default:
         {
             g_ePlayerData[id][PDATA_BOMB_ACTION] = false
@@ -1072,7 +1101,12 @@ public menuHandlerRemove(id, menu, item)
 
 public menuScale(id, iMenu)
 {
-    new szItem[64]
+    new szItem[64], eBomb[BOMB]
+    if ( bombGet(eBomb, g_ePlayerData[id][PDATA_BOMB_GHOST]) == -1 )
+    {
+        menu_destroy(iMenu)
+        return
+    }
 
     formatex(szItem, charsmax(szItem), "%L", id, "BOMB_SCALE_HEIGHT", id, g_ePlayerData[id][PDATA_SCALE_UP] ? "BOMB_ADD" : "BOMB_REMOVE")
     menu_additem(iMenu, szItem)
@@ -1208,6 +1242,16 @@ public menuHandlerScale(id, menu, item)
             client_print_color(id, id, "%L %L", id, "BOMB_CHAT_TAG", id, "BOMB_CHAT_CREATE_NEW", eBomb[BOMB_NAME])
             bombSound(id, SOUND_MENU_NAV)
             bombMenu(id, MENU_ROOT)
+        }
+        case MENU_EXIT:
+        {
+            bombSound(id, SOUND_MENU_NAV)
+            bombMenu(id, MENU_CREATE)
+
+            bombKill(eBomb[BOMB_ID])
+            bombRemove(iItem)
+            g_ePlayerData[id][PDATA_BOMB_GHOST] = 0
+            g_ePlayerData[id][PDATA_BOMB_ACTION] = false
         }
         default:
         {
@@ -1759,6 +1803,9 @@ stock bombSetBox(eBomb[BOMB], bool:bSetCorners = false)
             eBomb[BOMB_MAXS][j] = floatmax(eBomb[BOMB_MAXS][j], eBomb[BOMB_CORNERS][i * 3 + j])
         }
     }
+
+    xs_vec_sub(eBomb[BOMB_MINS], eBomb[BOMB_ORIGIN], eBomb[BOMB_MINS])
+    xs_vec_sub(eBomb[BOMB_MAXS], eBomb[BOMB_ORIGIN], eBomb[BOMB_MAXS])
 }
 
 stock boxCorners(eBomb[BOMB])
@@ -1798,38 +1845,39 @@ stock boxCorners(eBomb[BOMB])
 
 stock bombSetOffset(eBomb[BOMB])
 {
-    new Float:fVec1[3],
-        Float:fGap, Float:fDist
+    new Float:fGaps[6], Float:fVec1[3], Float:fCurrentGap
+    fGaps[0] = -eBomb[BOMB_MINS][0]
+    fGaps[1] = eBomb[BOMB_MAXS][0]
+    fGaps[2] = -eBomb[BOMB_MINS][1]
+    fGaps[3] = eBomb[BOMB_MAXS][1]
+    fGaps[4] = -eBomb[BOMB_MINS][2]
+    fGaps[5] = eBomb[BOMB_MAXS][2]
 
-    xs_vec_sub(eBomb[BOMB_ORIGIN], Float:{0.0, 0.0, 9999.9}, fVec1)
-    engfunc(EngFunc_TraceLine, eBomb[BOMB_ORIGIN], fVec1, IGNORE_MONSTERS, eBomb[BOMB_ID], 0)
-    get_tr2(0, TR_vecEndPos, fVec1)
-    fDist = xs_vec_distance(eBomb[BOMB_ORIGIN], fVec1)
-    fGap = eBomb[BOMB_ORIGIN][2] - eBomb[BOMB_MINS][2]
-
-    if ( fDist < (fGap + 1.0) )
+    for ( new i = 0; i < 6; i ++ )
     {
-        get_tr2(0, TR_vecPlaneNormal, fVec1)
-        xs_vec_mul_scalar(fVec1, (fGap + 1.0) - fDist, fVec1)
-        xs_vec_add(eBomb[BOMB_ORIGIN], fVec1, eBomb[BOMB_ORIGIN])
+        xs_vec_mul_scalar(g_fDirections[i], 9999.9, fVec1)
+        xs_vec_add(fVec1, eBomb[BOMB_ORIGIN], fVec1)
+        engfunc(EngFunc_TraceLine, eBomb[BOMB_ORIGIN], fVec1, DONT_IGNORE_MONSTERS, eBomb[BOMB_ID], 0)
+        get_tr2(0, TR_vecEndPos, fVec1)
+        fCurrentGap = xs_vec_distance(eBomb[BOMB_ORIGIN], fVec1)
+
+        if ( fCurrentGap < (fGaps[i] + 1.0) )
+        {
+            get_tr2(0, TR_vecPlaneNormal, fVec1)
+            xs_vec_mul_scalar(fVec1, (fGaps[i] + 1.0) - fCurrentGap, fVec1)
+            xs_vec_add(eBomb[BOMB_ORIGIN], fVec1, eBomb[BOMB_ORIGIN])
+        }
     }
 }
 
 stock bombSetActive(eBomb[BOMB])
 {
-    new Float:fVec1[3],
-        Float:fMins[3], Float:fMaxs[3]
-
     set_pev(eBomb[BOMB_ID], pev_solid, SOLID_TRIGGER)
     set_pev(eBomb[BOMB_ID], pev_movetype, MOVETYPE_NONE)
-    xs_vec_sub(eBomb[BOMB_MINS], eBomb[BOMB_ORIGIN], fMins)
-    xs_vec_sub(eBomb[BOMB_MAXS], eBomb[BOMB_ORIGIN], fMaxs)
-
-    xs_vec_copy(eBomb[BOMB_ORIGIN], fVec1)
     if ( eBomb[BOMB_FLAGS] & FLAG_ICON )
-        eBomb[BOMB_ICON] = iconCreate(eBomb, fVec1)
+        eBomb[BOMB_ICON] = iconCreate(eBomb, eBomb[BOMB_ORIGIN])
 
-    engfunc(EngFunc_SetSize, eBomb[BOMB_ID], fMins, fMaxs)
+    engfunc(EngFunc_SetSize, eBomb[BOMB_ID], eBomb[BOMB_MINS], eBomb[BOMB_MAXS])
 }
 
 stock bombBeam(eBomb[BOMB])
@@ -1964,16 +2012,18 @@ stock bombSound(iEnt, iSound, iChan = CHAN_ITEM, bool:bPlayer = true, iFlags = 0
 
 stock bool:isBombActive(eBomb[BOMB], id)
 {
-    new Float:fOrigin[3]
+    new Float:fOrigin[3], Float:fAbsMins[3], Float:fAbsMaxs[3]
 
     pev(id, pev_origin, fOrigin)
     for ( new i = 0; i < g_iBomb; i ++ )
     {
         ArrayGetArray(g_aBomb, i, eBomb)
+        xs_vec_add(eBomb[BOMB_MINS], eBomb[BOMB_ORIGIN], fAbsMins)
+        xs_vec_add(eBomb[BOMB_MAXS], eBomb[BOMB_ORIGIN], fAbsMaxs)
 
-        if ( fOrigin[0] >= eBomb[BOMB_MINS][0] - 25.0 && fOrigin[0] <= eBomb[BOMB_MAXS][0] + 25.0
-        && fOrigin[1] >= eBomb[BOMB_MINS][1] - 25.0 && fOrigin[1] <= eBomb[BOMB_MAXS][1] + 25.0
-        && fOrigin[2] >= eBomb[BOMB_MINS][2] - 25.0 && fOrigin[2] <= eBomb[BOMB_MAXS][2] + 25.0 )
+        if ( fOrigin[0] >= fAbsMins[0] - 25.0 && fOrigin[0] <= fAbsMaxs[0] + 25.0
+        && fOrigin[1] >= fAbsMins[1] - 25.0 && fOrigin[1] <= fAbsMaxs[1] + 25.0
+        && fOrigin[2] >= fAbsMins[2] - 25.0 && fOrigin[2] <= fAbsMaxs[2] + 25.0 )
             return true
     }
 
