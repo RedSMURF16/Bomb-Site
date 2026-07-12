@@ -213,7 +213,10 @@ enum _:PLAYER_DATA
     bool:PDATA_SCALE_UP,
     PDATA_SCALE_FACTOR,
     Float:PDATA_OFFSET,
-    Float:PDATA_NEXT_OFFSET
+    Float:PDATA_NEXT_OFFSET,
+
+    PDATA_MENU_TYPE,
+    bool:PDATA_MENU_TRACE
 }
 
 enum
@@ -406,7 +409,6 @@ public eventRoundStart()
             continue
 
         bombReset(eBomb)
-
         if ( eBomb[BOMB_ACTIVE_CHANCE] >= random_float(0.0, 1.0) )
         {
             if ( eBomb[BOMB_FLAGS] & FLAG_ACTIVE_DELAY )
@@ -688,6 +690,9 @@ public bombInit()
 
 public bombMenu(id, iType)
 {
+    if ( !is_user_connected(id) )
+        return PLUGIN_HANDLED
+
     new szData[64], iMenu
     formatex(szData, charsmax(szData), "%L", id, "BOMB_MENU_TITLE", PLUGIN_VERSION)
     iMenu = menu_create(szData, g_szMenuHandler[iType])
@@ -868,6 +873,7 @@ public menuStatus(id, iMenu)
     menu_additem(iMenu, szItem)
 
     g_ePlayerData[id][PDATA_BOMB_ACTION] = true
+    g_ePlayerData[id][PDATA_MENU_TYPE] = MENU_STATUS
     eBomb[BOMB_FLAGS] |= FLAG_SELECT
     ArraySetArray(g_aBomb, g_ePlayerData[id][PDATA_BOMB_MENU], eBomb)
 }
@@ -876,8 +882,11 @@ public menuHandlerStatus(id, menu, item)
 {
     new eBomb[BOMB]
     ArrayGetArray(g_aBomb, g_ePlayerData[id][PDATA_BOMB_MENU], eBomb)
-    eBomb[BOMB_FLAGS] &= ~FLAG_SELECT
-    ArraySetArray(g_aBomb, g_ePlayerData[id][PDATA_BOMB_MENU], eBomb)
+    if ( !g_ePlayerData[id][PDATA_MENU_TRACE] )
+    {
+        eBomb[BOMB_FLAGS] &= ~FLAG_SELECT
+        ArraySetArray(g_aBomb, g_ePlayerData[id][PDATA_BOMB_MENU], eBomb)
+    }
 
     switch( item )
     {
@@ -985,11 +994,16 @@ public menuHandlerStatus(id, menu, item)
         }
         case MENU_EXIT:
         {
-            bombSound(id, SOUND_MENU_NAV)
-            bombMenu(id, MENU_ROOT)
+            if ( !g_ePlayerData[id][PDATA_MENU_TRACE] )
+            {
+                bombSound(id, SOUND_MENU_NAV)
+                bombMenu(id, MENU_ROOT)
 
-            g_ePlayerData[id][PDATA_BOMB_ACTION] = false
-            g_ePlayerData[id][PDATA_BOMB_MENU] = 0
+                g_ePlayerData[id][PDATA_BOMB_ACTION] = false
+                g_ePlayerData[id][PDATA_BOMB_MENU] = 0
+            }
+
+            g_ePlayerData[id][PDATA_MENU_TRACE] = false
         }
         default:
         {
@@ -1005,7 +1019,6 @@ public menuHandlerStatus(id, menu, item)
 public menuRemove(id, iMenu)
 {
     new eBomb[BOMB], szItem[64]
-
     ArrayGetArray(g_aBomb, g_ePlayerData[id][PDATA_BOMB_MENU], eBomb)
     menuNav(id, iMenu)
 
@@ -1017,6 +1030,7 @@ public menuRemove(id, iMenu)
     menu_additem(iMenu, szItem)
 
     g_ePlayerData[id][PDATA_BOMB_ACTION] = true
+    g_ePlayerData[id][PDATA_MENU_TYPE] = MENU_REMOVE
     eBomb[BOMB_FLAGS] |= FLAG_SELECT
     ArraySetArray(g_aBomb, g_ePlayerData[id][PDATA_BOMB_MENU], eBomb)
 }
@@ -1024,10 +1038,12 @@ public menuRemove(id, iMenu)
 public menuHandlerRemove(id, menu, item)
 {
     new eBomb[BOMB]
-
     ArrayGetArray(g_aBomb, g_ePlayerData[id][PDATA_BOMB_MENU], eBomb)
-    eBomb[BOMB_FLAGS] &= ~FLAG_SELECT
-    ArraySetArray(g_aBomb, g_ePlayerData[id][PDATA_BOMB_MENU], eBomb)
+    if ( !g_ePlayerData[id][PDATA_MENU_TRACE] )
+    {
+        eBomb[BOMB_FLAGS] &= ~FLAG_SELECT
+        ArraySetArray(g_aBomb, g_ePlayerData[id][PDATA_BOMB_MENU], eBomb)
+    }
 
     switch( item )
     {
@@ -1082,11 +1098,16 @@ public menuHandlerRemove(id, menu, item)
         }
         case MENU_EXIT:
         {
-            bombSound(id, SOUND_MENU_NAV)
-            bombMenu(id, MENU_ROOT)
+            if ( !g_ePlayerData[id][PDATA_MENU_TRACE] )
+            {
+                bombSound(id, SOUND_MENU_NAV)
+                bombMenu(id, MENU_ROOT)
 
-            g_ePlayerData[id][PDATA_BOMB_ACTION] = false
-            g_ePlayerData[id][PDATA_BOMB_MENU] = 0
+                g_ePlayerData[id][PDATA_BOMB_ACTION] = false
+                g_ePlayerData[id][PDATA_BOMB_MENU] = 0
+            }
+
+            g_ePlayerData[id][PDATA_MENU_TRACE] = false
         }
         default:
         {
@@ -1107,6 +1128,8 @@ public menuScale(id, iMenu)
         menu_destroy(iMenu)
         return
     }
+
+    g_ePlayerData[id][PDATA_MENU_TYPE] = MENU_SCALE
 
     formatex(szItem, charsmax(szItem), "%L", id, "BOMB_SCALE_HEIGHT", id, g_ePlayerData[id][PDATA_SCALE_UP] ? "BOMB_ADD" : "BOMB_REMOVE")
     menu_additem(iMenu, szItem)
@@ -1781,10 +1804,9 @@ stock bombCheck(id)
         eBomb[BOMB_FLAGS] &= ~FLAG_SELECT
         ArraySetArray(g_aBomb, g_ePlayerData[id][PDATA_BOMB_MENU], eBomb)
 
-        ArrayGetArray(g_aBomb, iBest, eBomb)
-        eBomb[BOMB_FLAGS] |= FLAG_SELECT
-        ArraySetArray(g_aBomb, iBest, eBomb)
+        g_ePlayerData[id][PDATA_MENU_TRACE] = true
         g_ePlayerData[id][PDATA_BOMB_MENU] = iBest
+        bombMenu(id, g_ePlayerData[id][PDATA_MENU_TYPE])
     }
 }
 
