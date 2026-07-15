@@ -109,13 +109,6 @@ enum
 
 enum
 {
-    STATUS_DEFAULT,
-    STATUS_FORCE_ENABLE,
-    STATUS_FORCE_DISABLE
-}
-
-enum
-{
     TEAM_NONE,
     TEAM_T,
     TEAM_CT,
@@ -133,10 +126,7 @@ enum
 {
     SOUND_MENU_NAV,
     SOUND_MENU_REMOVE,
-    SOUND_MENU_ALERT,
-
-    SOUND_ENABLED,
-    SOUND_DISABLED
+    SOUND_MENU_ALERT
 }
 
 enum _:MAIN_SETTINGS
@@ -167,8 +157,6 @@ enum _:MAIN_SETTINGS
     SETTING_SOUND_MENU_NAV[MAX_RESOURCE_PATH_LENGTH],
     SETTING_SOUND_MENU_REMOVE[MAX_RESOURCE_PATH_LENGTH],
     SETTING_SOUND_MENU_ALERT[MAX_RESOURCE_PATH_LENGTH],
-    SETTING_SOUND_SUITCHARGE[MAX_RESOURCE_PATH_LENGTH],
-    SETTING_SOUND_BLIP2[MAX_RESOURCE_PATH_LENGTH],
 
     SETTING_BEAM,
     SETTING_BEAM_WIDTH,
@@ -182,7 +170,6 @@ enum _:BOMB
     BOMB_ID,
     BOMB_ITEM,
     BOMB_FLAGS,
-    BOMB_STATUS,
     BOMB_RADAR,
     Float:BOMB_ACTIVE_CHANCE,
     Float:BOMB_ACTIVE_DELAY[2],
@@ -246,8 +233,7 @@ enum
 
     STATUS_CURRENT = 3,
     STATUS_ALL_ENABLE,
-    STATUS_ALL_DISABLE,
-    STATUS_ALL_DEFAULT
+    STATUS_ALL_DISABLE
 }
 
 enum
@@ -301,10 +287,6 @@ new Array:g_aBomb,
     g_iBomb, g_iBombConfig,
     g_iBombDrop, g_iHostagePos, g_iHostageK, g_iStatusIcon, g_iPlayerBomb,
     g_iMaxPlayers
-
-new g_szStatus[][] = {"BOMB_DEFAULT", "BOMB_ENABLED", "BOMB_DISABLED"}
-new g_szStatusChat[][] = {"BOMB_CHAT_DEFAULT", "BOMB_CHAT_ENABLED", "BOMB_CHAT_DISABLED"}
-new g_szStatusColor[][] = {"\d", "\y", "\r"}
 
 public plugin_init()
 {
@@ -404,8 +386,7 @@ public eventRoundStart()
     for ( new i = 0; i < g_iBomb; i ++ )
     {
         ArrayGetArray(g_aBomb, i, eBomb)
-
-        if ( eBomb[BOMB_STATUS] != STATUS_DEFAULT )
+        if ( !(eBomb[BOMB_FLAGS] & FLAG_ACTIVE) )
             continue
 
         bombReset(eBomb)
@@ -594,10 +575,6 @@ stock ReadFile()
                             parseSetting(DTYPE_STRING_SOUND, szKey, charsmax(szKey), szValue, charsmax(szValue), g_eSettings[SETTING_SOUND_MENU_REMOVE], charsmax(g_eSettings[SETTING_SOUND_MENU_REMOVE]))
                         else if ( equali(szKey, "SETTING_SOUND_MENU_ALERT") )
                             parseSetting(DTYPE_STRING_SOUND, szKey, charsmax(szKey), szValue, charsmax(szValue), g_eSettings[SETTING_SOUND_MENU_ALERT], charsmax(g_eSettings[SETTING_SOUND_MENU_ALERT]))
-                        else if ( equali(szKey, "SETTING_SOUND_SUITCHARGE") )
-                            parseSetting(DTYPE_STRING_SOUND, szKey, charsmax(szKey), szValue, charsmax(szValue), g_eSettings[SETTING_SOUND_SUITCHARGE], charsmax(g_eSettings[SETTING_SOUND_SUITCHARGE]))
-                        else if ( equali(szKey, "SETTING_SOUND_BLIP2") )
-                            parseSetting(DTYPE_STRING_SOUND, szKey, charsmax(szKey), szValue, charsmax(szValue), g_eSettings[SETTING_SOUND_BLIP2], charsmax(g_eSettings[SETTING_SOUND_BLIP2]))
                         else if ( equali(szKey, "SETTING_BEAM") )
                             parseSetting(DTYPE_STRING_SPRITE, szKey, charsmax(szKey), szValue, charsmax(szValue), g_eSettings[SETTING_BEAM], charsmax(g_eSettings[SETTING_BEAM]))
                         else if ( equali(szKey, "SETTING_BEAM_WIDTH") )
@@ -860,16 +837,13 @@ public menuStatus(id, iMenu)
     ArrayGetArray(g_aBomb, g_ePlayerData[id][PDATA_BOMB_MENU], eBomb)
 
     formatex(szItem, charsmax(szItem), "%L", id, "BOMB_STATUS_CURRENT",
-    g_szStatusColor[eBomb[BOMB_STATUS]], eBomb[BOMB_NAME], id, g_szStatus[eBomb[BOMB_STATUS]])
+    eBomb[BOMB_FLAGS] & FLAG_ACTIVE ? "\y" : "\r", id, eBomb[BOMB_FLAGS] & FLAG_ACTIVE ? "BOMB_ENABLED" : "BOMB_DISABLED")
     menu_additem(iMenu, szItem)
 
     formatex(szItem, charsmax(szItem), "%L", id, "BOMB_STATUS_ALL_ENABLE")
     menu_additem(iMenu, szItem)
 
     formatex(szItem, charsmax(szItem), "%L", id, "BOMB_STATUS_ALL_DISABLE")
-    menu_additem(iMenu, szItem)
-
-    formatex(szItem, charsmax(szItem), "%L", id, "BOMB_STATUS_ALL_DEFAULT")
     menu_additem(iMenu, szItem)
 
     g_ePlayerData[id][PDATA_BOMB_ACTION] = true
@@ -912,26 +886,12 @@ public menuHandlerStatus(id, menu, item)
         }
         case STATUS_CURRENT:
         {
-            if ( ++ eBomb[BOMB_STATUS] > STATUS_FORCE_DISABLE )
-                eBomb[BOMB_STATUS] = STATUS_DEFAULT
-
-            if ( eBomb[BOMB_STATUS] == STATUS_FORCE_ENABLE )
-            {
-                eBomb[BOMB_FLAGS] |= FLAG_ACTIVE
-
-                if ( eBomb[BOMB_FLAGS] & FLAG_ICON )
-                    iconColor(eBomb[BOMB_ICON], true, eBomb[BOMB_ICON_ALPHA])
-            }
-            else if ( eBomb[BOMB_STATUS] == STATUS_FORCE_DISABLE )
-            {
-                eBomb[BOMB_FLAGS] &= ~FLAG_ACTIVE
-
-                if ( eBomb[BOMB_FLAGS] & FLAG_ICON )
-                    iconColor(eBomb[BOMB_ICON], false, eBomb[BOMB_ICON_ALPHA])
-            }
+            eBomb[BOMB_FLAGS] ^= FLAG_ACTIVE
+            if ( eBomb[BOMB_FLAGS] & FLAG_ICON )
+                iconColor(eBomb[BOMB_ICON], eBomb[BOMB_FLAGS] & FLAG_ACTIVE ? true : false, eBomb[BOMB_ICON_ALPHA])
 
             client_print_color(id, id, "%L %L", id, "BOMB_CHAT_TAG", id, "BOMB_CHAT_STATUS_CURRENT",
-            eBomb[BOMB_NAME], id, g_szStatusChat[eBomb[BOMB_STATUS]])
+            eBomb[BOMB_NAME], id, eBomb[BOMB_FLAGS] & FLAG_ACTIVE ? "BOMB_CHAT_ENABLED" : "BOMB_CHAT_DISABLED")
             ArraySetArray(g_aBomb, g_ePlayerData[id][PDATA_BOMB_MENU], eBomb)
 
             iconRefresh()
@@ -945,7 +905,6 @@ public menuHandlerStatus(id, menu, item)
             {
                 ArrayGetArray(g_aBomb, i, eBomb)
                 eBomb[BOMB_FLAGS] |= FLAG_ACTIVE
-                eBomb[BOMB_STATUS] = STATUS_FORCE_ENABLE
 
                 ArraySetArray(g_aBomb, i, eBomb)
 
@@ -965,7 +924,6 @@ public menuHandlerStatus(id, menu, item)
             {
                 ArrayGetArray(g_aBomb, i, eBomb)
                 eBomb[BOMB_FLAGS] &= ~FLAG_ACTIVE
-                eBomb[BOMB_STATUS] = STATUS_FORCE_DISABLE
 
                 ArraySetArray(g_aBomb, i, eBomb)
 
@@ -976,19 +934,6 @@ public menuHandlerStatus(id, menu, item)
             iconRefresh()
 
             client_print_color(id, id, "%L %L", id, "BOMB_CHAT_TAG", id, "BOMB_CHAT_STATUS_ALL_DISABLED")
-            bombSound(id, SOUND_MENU_ALERT)
-            bombMenu(id, MENU_STATUS)
-        }
-        case STATUS_ALL_DEFAULT:
-        {
-            for ( new i = 0; i < g_iBomb; i ++ )
-            {
-                ArrayGetArray(g_aBomb, i, eBomb)
-                eBomb[BOMB_STATUS] = STATUS_DEFAULT
-                ArraySetArray(g_aBomb, i, eBomb)
-            }
-
-            client_print_color(id, id, "%L %L", id, "BOMB_CHAT_TAG", id, "BOMB_CHAT_STATUS_ALL_DEFAULT")
             bombSound(id, SOUND_MENU_ALERT)
             bombMenu(id, MENU_STATUS)
         }
@@ -1023,7 +968,7 @@ public menuRemove(id, iMenu)
     menuNav(id, iMenu)
 
     formatex(szItem, charsmax(szItem), "%L", id, "BOMB_REMOVE_CURRENT",
-    g_szStatusColor[eBomb[BOMB_STATUS]], eBomb[BOMB_NAME])
+    eBomb[BOMB_FLAGS] & FLAG_ACTIVE ? "\y" : "\r", eBomb[BOMB_NAME])
     menu_additem(iMenu, szItem)
 
     formatex(szItem, charsmax(szItem), "%L", id, "BOMB_REMOVE_ALL")
@@ -1332,8 +1277,8 @@ public bombTask()
 
                 if ( eBomb[BOMB_FLAGS] & FLAG_ICON )
                     iconColor(eBomb[BOMB_ICON], false, eBomb[BOMB_ICON_ALPHA])
+
                 iconRefresh()
-                bombSound(eBomb[BOMB_ID], SOUND_DISABLED, .bPlayer = false)
             }
         }
         else
@@ -1348,11 +1293,10 @@ public bombTask()
                     eBomb[BOMB_NEXT_DISABLE] = fCurrentTime + random_float(eBomb[BOMB_ACTIVE_DURATION][0], eBomb[BOMB_ACTIVE_DURATION][1])
 
                 ArraySetArray(g_aBomb, i, eBomb)
-
                 if ( eBomb[BOMB_FLAGS] & FLAG_ICON )
                     iconColor(eBomb[BOMB_ICON], true, eBomb[BOMB_ICON_ALPHA])
+
                 iconRefresh()
-                bombSound(eBomb[BOMB_ID], SOUND_ENABLED, .bPlayer = false, .iPitch = 150)
             }
         }
     }
@@ -1450,9 +1394,6 @@ public saveData(id)
         formatex(szData, charsmax(szData), "item = %d^n", eBomb[BOMB_ITEM])
         fputs(iFile, szData)
 
-        formatex(szData, charsmax(szData), "status = %d^n", eBomb[BOMB_STATUS])
-        fputs(iFile, szData)
-
         eBomb[BOMB_FLAGS] &= ~FLAG_SELECT
         formatex(szData, charsmax(szData), "flags = %d^n", eBomb[BOMB_FLAGS])
         fputs(iFile, szData)
@@ -1485,7 +1426,7 @@ public loadData()
 {
     new szFile[128], iFile,
         szData[64], szKey[32], szValue[32],
-        iItem, iStatus, iFlags, Float:fScale[3], Float:fOrigin[3], Float:fCorners[24],
+        iItem, iFlags, Float:fScale[3], Float:fOrigin[3], Float:fCorners[24],
         iCorner, iCount = -1
 
     get_mapname(szFile, charsmax(szFile))
@@ -1502,7 +1443,7 @@ public loadData()
         if ( szData[0] == '[' )
         {
             if ( iCount != -1 )
-                loadDataBomb(fCorners, fScale, fOrigin, iItem, iStatus, iFlags, iCount)
+                loadDataBomb(fCorners, fScale, fOrigin, iItem, iFlags, iCount)
 
             iCount ++
         }
@@ -1515,10 +1456,6 @@ public loadData()
             if ( equal(szKey, "item") )
             {
                 iItem = str_to_num(szValue)
-            }
-            else if ( equal(szKey, "status") )
-            {
-                iStatus = str_to_num(szValue)
             }
             else if ( equal(szKey, "flags") )
             {
@@ -1557,19 +1494,18 @@ public loadData()
     }
 
     if ( iCount != -1 )
-        loadDataBomb(fCorners, fScale, fOrigin, iItem, iStatus, iFlags, iCount)
+        loadDataBomb(fCorners, fScale, fOrigin, iItem, iFlags, iCount)
 
     fclose(iFile)
     return PLUGIN_HANDLED
 }
 
-stock loadDataBomb(Float:fCorners[24], Float:fScale[3], Float:fOrigin[3], iItem, iStatus, iFlags, iCount)
+stock loadDataBomb(Float:fCorners[24], Float:fScale[3], Float:fOrigin[3], iItem, iFlags, iCount)
 {
     new eBomb[BOMB]
     bombCreate(0, iItem)
     ArrayGetArray(g_aBomb, iCount, eBomb)
 
-    eBomb[BOMB_STATUS] = iStatus
     eBomb[BOMB_FLAGS] = iFlags
     eBomb[BOMB_NEXT_RADAR] = get_gametime() + 2.0
     xs_vec_copy(fScale, eBomb[BOMB_SCALE])
@@ -2022,8 +1958,6 @@ stock bombSound(iEnt, iSound, iChan = CHAN_ITEM, bool:bPlayer = true, iFlags = 0
         case SOUND_MENU_NAV:        copy(szSample, charsmax(szSample), g_eSettings[SETTING_SOUND_MENU_NAV])
         case SOUND_MENU_REMOVE:     copy(szSample, charsmax(szSample), g_eSettings[SETTING_SOUND_MENU_REMOVE])
         case SOUND_MENU_ALERT:      copy(szSample, charsmax(szSample), g_eSettings[SETTING_SOUND_MENU_ALERT])
-        case SOUND_ENABLED:         copy(szSample, charsmax(szSample), g_eSettings[SETTING_SOUND_SUITCHARGE])
-        case SOUND_DISABLED:        copy(szSample, charsmax(szSample), g_eSettings[SETTING_SOUND_BLIP2])
     }
 
     if ( bPlayer )

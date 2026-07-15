@@ -6,14 +6,12 @@ BOMB_CHAT_CREATE_NEW                = ^3%s ^1created
 BOMB_CHAT_STATUS_CURRENT            = ^3%s ^1is %L
 BOMB_CHAT_STATUS_ALL_ENABLED        = All Bomb Sites are now enabled
 BOMB_CHAT_STATUS_ALL_DISABLED       = All Bomb Sites are now disabled
-BOMB_CHAT_STATUS_ALL_DEFAULT        = All Bomb Sites status reset to Default
 BOMB_CHAT_REMOVE_CURRENT            = ^3%s ^1removed
 BOMB_CHAT_REMOVE_ALL                = All Bomb Sites removed
 BOMB_CHAT_SAVE                      = Bomb Sites data saved in ^4%s
 
 BOMB_CHAT_ENABLED                   = Enabled
 BOMB_CHAT_DISABLED                  = Disabled
-BOMB_CHAT_DEFAULT                   = reset to Default
 
 BOMB_NAV_NEXT                       = Next
 BOMB_NAV_BACK                       = Back
@@ -23,7 +21,6 @@ BOMB_ON                             = \y[ON]
 BOMB_OFF                            = \r[OFF]
 BOMB_ENABLED                        = \y[ENABLED]
 BOMB_DISABLED                       = \r[DISABLED]
-BOMB_DEFAULT                        = \d[DEFAULT]
 BOMB_INCREASE                       = \y[INCREASE]
 BOMB_DECREASE                       = \r[DECREASE]
 
@@ -41,7 +38,6 @@ BOMB_ROOT_SCALE                     = Adjust scaling
 BOMB_STATUS_CURRENT                 = Status Bomb Site >> %s%s %L
 BOMB_STATUS_ALL_ENABLE              = Enable All Bomb Sites
 BOMB_STATUS_ALL_DISABLE             = Disable All Bomb Sites
-BOMB_STATUS_ALL_DEFAULT             = Reset-Status for all Bomb-Sites
 
 BOMB_REMOVE_CURRENT                 = Remove Bomb-Site >> %s%s
 BOMB_REMOVE_ALL                     = Remove All Bomb Sites
