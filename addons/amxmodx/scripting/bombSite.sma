@@ -639,11 +639,11 @@ public client_authorized(id)
 
 public client_disconnected(id)
 {
-    new iItem
+    new eBomb[BOMB], iItem
     if ( g_ePlayerData[id][PDATA_BOMB_GHOST]
-    && (iItem = pev(g_ePlayerData[id][PDATA_BOMB_GHOST], BOMB_ARRAY_ITEM)) != -1 )
+    && (iItem = bombGet(eBomb, g_ePlayerData[id][PDATA_BOMB_GHOST])) != -1 )
     {
-        bombKill(g_ePlayerData[id][PDATA_BOMB_GHOST])
+        bombKill(eBomb[BOMB_ID])
         bombRemove(iItem)
     }
 
