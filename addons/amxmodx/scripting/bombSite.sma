@@ -292,10 +292,10 @@ public plugin_init()
 {
     register_plugin("Bomb Site", PLUGIN_VERSION, "RedSMURF")
 
-    register_clcmd("say /bs",            "cmdMenu", ADMIN_RCON)
-    register_clcmd("say_team /bs",       "cmdMenu", ADMIN_RCON)
-    register_clcmd("say /bombsite",      "cmdMenu", ADMIN_RCON)
-    register_clcmd("say_team /bombsite", "cmdMenu", ADMIN_RCON)
+    register_clcmd("say /bs",            "cmdMenu", ADMIN_RCON, "-- Opens the Bomb Site menu.")
+    register_clcmd("say_team /bs",       "cmdMenu", ADMIN_RCON, "-- Opens the Bomb Site menu.")
+    register_clcmd("say /bombsite",      "cmdMenu", ADMIN_RCON, "-- Opens the Bomb Site menu.")
+    register_clcmd("say_team /bombsite", "cmdMenu", ADMIN_RCON, "-- Opens the Bomb Site menu.")
     register_concmd("bs_reload", "cmdReload", ADMIN_RCON, "-- Reload the configuration file")
     register_concmd("bombsite_reload", "cmdReload", ADMIN_RCON, "-- Reload the configuration file")
 
@@ -356,23 +356,6 @@ public cmdReload(id, iLevel, iCmd)
     console_print(id, "The configuration file has been reloaded successfully !")
 
     return PLUGIN_HANDLED
-}
-
-public client_command(id)
-{
-    if ( !g_ePlayerData[id][PDATA_BOMB_GHOST] )
-        return PLUGIN_CONTINUE
-
-    new szCmd[16]
-    read_argv(0, szCmd, charsmax(szCmd))
-
-    if ( contain(szCmd, "weapon_") != -1 ||
-    equal(szCmd, "invnext") ||
-    equal(szCmd, "invprev") ||
-    equal(szCmd, "lastinv") )
-        return PLUGIN_HANDLED
-
-    return PLUGIN_CONTINUE
 }
 
 public eventRoundStart()
