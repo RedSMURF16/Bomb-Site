@@ -28,12 +28,15 @@ BOMB_MENU_TITLE                     = \dBomb Site - Version \y%s
 BOMB_MENU_TITLE_PAGE                = \yPage:\r
 
 BOMB_ROOT_CREATE                    = Create Bomb Site
-BOMB_ROOT_STATUS                    = Status Bomb Site
+BOMB_ROOT_EDIT                      = Edit Bomb Site
 BOMB_ROOT_REMOVE                    = Remove Bomb Site
 BOMB_ROOT_SAVE                      = Save Data
+BOMB_ROOT_STATUS                    = Status Bomb Site
 BOMB_ROOT_NOCLIP                    = Status noclip %L
 BOMB_ROOT_GODMODE                   = Status godmode %L
 BOMB_ROOT_SCALE                     = Adjust scaling
+
+BOMB_EDIT_STATUS                    = Edit Status
 
 BOMB_STATUS_CURRENT                 = Status Bomb Site >> %s%s %L
 BOMB_STATUS_ALL_ENABLE              = Enable All Bomb Sites
