@@ -17,6 +17,10 @@ Custom setups are saved per map and automatically loaded on every map start.
 - Noclip for players while placing bomb sites, for easier and more accurate positioning
 - Optional support for plantable C4 on every map/mode, not just bomb-defusal maps
 
+## 📋 Requirements
+- ReGameDLL
+- AMX Mod X 1.10+
+
 ## 💬 Commands
 - `say /bs` - Opens the Bomb Site menu.
 - `say_team /bs` - Opens the Bomb Site menu.
