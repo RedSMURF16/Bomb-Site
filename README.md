@@ -9,8 +9,8 @@ This plugin gives full control over bomb sites in Counter-Strike 1.6.
 Bomb sites can be created, removed and toggled on or off during gameplay, with runtime control over radar visibility, activation chance and timing.
 Custom setups are saved per map and automatically loaded on every map start.
 - Create and remove bomb sites during gameplay via an in-game menu
-- A C4 HUD sprite marks each bomb site's location instead of a map decal
-- Sprite color changes dynamically based on the site's active/inactive state
+- A C4 HUD sprite marks each bomb sites location instead of a map decal
+- Sprite color changes dynamically based on the sites active/inactive state
 - Configurable per site: flags, radar visibility, activation chance, activation delay, duration and cooldown
 - Radar visibility can be restricted to Terrorists, CTs, both teams, or disabled entirely
 - Independent axis scaling with an Add/Remove mode toggle and factor control for precise box resizing
