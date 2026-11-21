@@ -66,9 +66,6 @@
 #define ADMIN_ACCESS                ADMIN_RCON
 #define BOMB_KEY                    988822
 #define BOMB_ARRAY_ITEM             pev_iuser1
-#define PDATA_NEXT_ATTACK           83
-#define XO_CBASEPLAYER              5
-#define XO_CBASEPLAYERWEAPON        4
 #define BOMB_CHECK                  10.0
 #define BOMB_OFFSET_BASE            90.0
 #define BOMB_OFFSET_MIN             42.0
@@ -161,6 +158,7 @@ enum _:MAIN_SETTINGS
     SETTING_DEFAULT_RADAR,
     Float:SETTING_DEFAULT_ICON_SCALE,
     Float:SETTING_DEFAULT_ICON_ALPHA,
+
     bool:SETTING_BOMB_LOAD,
     Float:SETTING_BOMB_TASK,
     bool:SETTING_BOMB_DEFAULT,
@@ -540,7 +538,7 @@ public client_disconnected(id)
     if ( g_ePlayerData[id][PDATA_BOMB_GHOST]
     && (iItem = bombGet(eBomb, g_ePlayerData[id][PDATA_BOMB_GHOST])) != -1 )
     {
-        bombKill(eBomb[BOMB_ID])
+        bombKill(eBomb)
         bombRemove(iItem)
     }
 
@@ -824,7 +822,7 @@ public menuHandlerRemove(id, menu, item)
         case REMOVE_CURRENT:
         {
             eBomb[BOMB_FLAGS] &= ~FLAG_ACTIVE
-            bombKill(eBomb[BOMB_ID])
+            bombKill(eBomb)
             bombRemove(g_ePlayerData[id][PDATA_BOMB_MENU])
 
             client_print_color(id, id, "%L %L", id, "BOMB_CHAT_TAG", id, "BOMB_CHAT_REMOVE_CURRENT")
@@ -840,7 +838,7 @@ public menuHandlerRemove(id, menu, item)
                 ArrayGetArray(g_aBomb, 0, eBomb)
                 eBomb[BOMB_FLAGS] &= ~FLAG_ACTIVE
 
-                bombKill(eBomb[BOMB_ID])
+                bombKill(eBomb)
                 bombRemove(0)
             }
 
@@ -1118,7 +1116,7 @@ public menuHandlerScale(id, menu, item)
         }
         case MENU_EXIT:
         {
-            bombKill(eBomb[BOMB_ID])
+            bombKill(eBomb)
             bombRemove(iItem)
             DisableAction(id)
             set_pdata_float(id, PDATA_NEXT_ATTACK, 0.0, XO_CBASEPLAYER, XO_CBASEPLAYER)
@@ -1129,7 +1127,7 @@ public menuHandlerScale(id, menu, item)
         }
         default:
         {
-            bombKill(eBomb[BOMB_ID])
+            bombKill(eBomb)
             bombRemove(iItem)
             DisableAction(id)
             set_pdata_float(id, PDATA_NEXT_ATTACK, 0.0, XO_CBASEPLAYER, XO_CBASEPLAYER)
@@ -1446,7 +1444,7 @@ public fwdKilled(id, iAttacker, bGib)
 
         if ( (iItem = bombGet(eBomb, g_ePlayerData[id][PDATA_BOMB_GHOST])) != -1 )
         {
-            bombKill(eBomb[BOMB_ID])
+            bombKill(eBomb)
             bombRemove(iItem)
             g_ePlayerData[id][PDATA_BOMB_GHOST] = 0
         }
@@ -1888,6 +1886,9 @@ stock bool:isBombActive(eBomb[BOMB], id)
 
 stock bombGet(eBomb[BOMB], iEnt)
 {
+    if ( !isBomb(iEnt) )
+        return -1
+
     new iItem
     iItem = pev(iEnt, BOMB_ARRAY_ITEM)
     if ( iItem < 0 || iItem >= g_iBomb )
@@ -1902,10 +1903,13 @@ stock bool:isBomb(iEnt)
     return pev(iEnt, pev_impulse) == BOMB_KEY
 }
 
-stock bombKill(iEnt)
+stock bombKill(eBomb[BOMB])
 {
-    if ( pev_valid(iEnt) )
-        set_pev(iEnt, pev_flags, pev(iEnt, pev_flags) | FL_KILLME)
+    if ( pev_valid(eBomb[BOMB_ID]) )
+        set_pev(eBomb[BOMB_ID], pev_flags, pev(eBomb[BOMB_ID], pev_flags) | FL_KILLME)
+
+    if ( pev_valid(eBomb[BOMB_ICON]) )
+        set_pev(eBomb[BOMB_ICON], pev_flags, pev(eBomb[BOMB_ICON], pev_flags) | FL_KILLME)
 }
 
 stock parseSetting(iType, szValue[], iValueLen, any:aOutput[], iOutputLength)
