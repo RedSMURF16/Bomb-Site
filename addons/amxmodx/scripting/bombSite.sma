@@ -81,17 +81,17 @@
 #define SIZE_WIDTH_MAX              1500.0
 #define SIZE_DEPTH_MIN              5.0
 #define SIZE_DEPTH_MAX              1500.0
+#define PDATA_NEXT_ATTACK           83
+#define XO_CBASEPLAYER              5
+#define XO_CBASEPLAYERWEAPON        4
 #define SOUND_NAV                   "buttons/blip1.wav"
 #define SOUND_REMOVE                "buttons/button10.wav"
 #define SOUND_ALERT                 "buttons/bell1.wav"
 #define BEAM_WIDTH                  5
 #define BEAM_ALPHA                  255
 #define BEAM_SPRITE                 "sprites/white.spr"
-#define ICON_SCALE                  0.1
-#define ICON_ALPHA                  90
-#define ICON_SPRITE                 "sprites/BombSite/bombTarget.spr"
 
-new const PLUGIN_VERSION[]       = "1.6"
+new const PLUGIN_VERSION[]       = "1.7"
 new const Float:DELAY_ON_LOAD    = 2.0
 new const ERROR_FILE[]           = "BombSite_ERRORS.log"
 
@@ -118,11 +118,10 @@ enum
 
 enum
 {
-    FLAG_RADAR              = (1 << 0),
-    FLAG_ICON               = (1 << 1),
+    FLAG_ICON               = (1 << 0),
 
-    FLAG_SELECT             = (1 << 2),
-    FLAG_ACTIVE             = (1 << 3)
+    FLAG_SELECT             = (1 << 1),
+    FLAG_ACTIVE             = (1 << 2)
 }
 
 enum
@@ -157,9 +156,11 @@ enum
 
 enum _:MAIN_SETTINGS
 {
-    SETTING_DEFAULT_MODEL[MAX_RESOURCE_PATH_LENGTH],
+    SETTING_DEFAULT_SPRITE_ICON[MAX_RESOURCE_PATH_LENGTH],
     SETTING_DEFAULT_FLAGS,
     SETTING_DEFAULT_RADAR,
+    Float:SETTING_DEFAULT_ICON_SCALE,
+    Float:SETTING_DEFAULT_ICON_ALPHA,
     bool:SETTING_BOMB_LOAD,
     Float:SETTING_BOMB_TASK,
     bool:SETTING_BOMB_DEFAULT,
@@ -172,6 +173,7 @@ enum _:BOMB
     BOMB_ITEM,
     BOMB_FLAGS,
     BOMB_RADAR,
+    BOMB_ICON,
     BOMB_NAME[MAX_VALUE_LENGTH],
 
     Float:BOMB_SCALE[3],
@@ -206,6 +208,7 @@ enum
 enum
 {
     MENU_ROOT,
+    MENU_CREATE,
     MENU_EDIT,
     MENU_REMOVE,
     MENU_STATUS,
@@ -290,6 +293,7 @@ new Float:g_fDirections[][] =
 new g_szMenuHandler[][MAX_VALUE_LENGTH] =
 {
     "menuHandlerRoot",
+    "menuHandlerCreate",
     "menuHandlerEdit",
     "menuHandlerRemove",
     "menuHandlerStatus",
@@ -345,7 +349,6 @@ public plugin_precache()
     g_aBomb = ArrayCreate(BOMB)
     g_aBombConfig = ArrayCreate(BOMB)
     g_iBeam = precache_model(BEAM_SPRITE)
-    precache_model(ICON_SPRITE)
 
     ReadFile()
 }
@@ -480,12 +483,16 @@ stock ReadFile()
                     }
                     case SECTION_MAIN_SETTINGS:
                     {
-                        if ( equali(szKey, "SETTING_DEFAULT_MODEL") && !g_bFileWasRead )
-                            parseSetting(DTYPE_STRING_MODEL, szValue, charsmax(szValue), g_eSettings[SETTING_DEFAULT_MODEL], charsmax(g_eSettings[SETTING_DEFAULT_MODEL]))
+                        if ( equali(szKey, "SETTING_DEFAULT_SPRITE_ICON") )
+                            parseSetting(DTYPE_STRING_MODEL, szValue, charsmax(szValue), g_eSettings[SETTING_DEFAULT_SPRITE_ICON], charsmax(g_eSettings[SETTING_DEFAULT_SPRITE_ICON]))
                         else if ( equali(szKey, "SETTING_DEFAULT_FLAGS") )
                             parseSetting(DTYPE_FLAGS, szValue, charsmax(szValue), g_eSettings[SETTING_DEFAULT_FLAGS], charsmax(g_eSettings[SETTING_DEFAULT_FLAGS]))
                         else if ( equali(szKey, "SETTING_DEFAULT_RADAR") )
                             parseSetting(DTYPE_INT, szValue, charsmax(szValue), g_eSettings[SETTING_DEFAULT_RADAR], charsmax(g_eSettings[SETTING_DEFAULT_RADAR]))
+                        else if ( equali(szKey, "SETTING_DEFAULT_ICON_SCALE") )
+                            parseSetting(DTYPE_FLOAT, szValue, charsmax(szValue), g_eSettings[SETTING_DEFAULT_ICON_SCALE], charsmax(g_eSettings[SETTING_DEFAULT_ICON_SCALE]))
+                        else if ( equali(szKey, "SETTING_DEFAULT_ICON_ALPHA") )
+                            parseSetting(DTYPE_FLOAT, szValue, charsmax(szValue), g_eSettings[SETTING_DEFAULT_ICON_ALPHA], charsmax(g_eSettings[SETTING_DEFAULT_ICON_ALPHA]))
                         else if ( equali(szKey, "SETTING_BOMB_LOAD") )
                             parseSetting(DTYPE_INT, szValue, charsmax(szValue), g_eSettings[SETTING_BOMB_LOAD], charsmax(g_eSettings[SETTING_BOMB_LOAD]))
                         else if ( equali(szKey, "SETTING_BOMB_TASK") )
@@ -572,6 +579,7 @@ stock bombMenu(id, iType)
     switch( iType )
     {
         case MENU_ROOT:         { menuRoot(id, iMenu); }
+        case MENU_CREATE:       { menuCreate(id, iMenu);        format(szData, charsmax(szData), "%s^n%L", szData, id, "BOMB_ROOT_CREATE"); }
         case MENU_EDIT:         { menuEdit(id, iMenu);          format(szData, charsmax(szData), "%s^n%L", szData, id, "BOMB_ROOT_EDIT"); }
         case MENU_REMOVE:       { menuRemove(id, iMenu);        format(szData, charsmax(szData), "%s^n%L", szData, id, "BOMB_ROOT_REMOVE"); }
         case MENU_STATUS:       { menuStatus(id, iMenu);        format(szData, charsmax(szData), "%s^n%L", szData, id, "BOMB_ROOT_STATUS"); }
@@ -647,10 +655,8 @@ public menuHandlerRoot(id, menu, item)
             }
             else
             {
-                bombCreate(id)
-
                 bombSound(id, SOUND_MENU_NAV)
-                bombMenu(id, MENU_SCALE)
+                bombMenu(id, MENU_CREATE)
             }
         }
         case ROOT_EDIT:
@@ -696,6 +702,43 @@ public menuHandlerRoot(id, menu, item)
             bombGodMode(id)
         }
     }
+
+    menu_destroy(menu)
+    return PLUGIN_HANDLED
+}
+
+public menuCreate(id, iMenu)
+{
+    new eBomb[BOMB], szItem[64]
+
+    for ( new i = 0; i < g_iBombConfig; i ++ )
+    {
+        ArrayGetArray(g_aBombConfig, i, eBomb)
+
+        copy(szItem, charsmax(szItem), eBomb[BOMB_NAME])
+        menu_additem(iMenu, szItem)
+    }
+}
+
+public menuHandlerCreate(id, menu, item)
+{
+    if ( !is_user_alive(id) )
+    {
+        menu_destroy(menu)
+        return PLUGIN_HANDLED
+    }
+    else if ( item == MENU_EXIT )
+    {
+        bombSound(id, SOUND_MENU_NAV)
+        bombMenu(id, MENU_ROOT)
+
+        menu_destroy(menu)
+        return PLUGIN_HANDLED
+    }
+
+    bombCreate(id, item)
+    bombSound(id, SOUND_MENU_NAV)
+    bombMenu(id, MENU_SCALE)
 
     menu_destroy(menu)
     return PLUGIN_HANDLED
@@ -781,7 +824,6 @@ public menuHandlerRemove(id, menu, item)
         case REMOVE_CURRENT:
         {
             eBomb[BOMB_FLAGS] &= ~FLAG_ACTIVE
-            bombSetState(eBomb)
             bombKill(eBomb[BOMB_ID])
             bombRemove(g_ePlayerData[id][PDATA_BOMB_MENU])
 
@@ -798,7 +840,6 @@ public menuHandlerRemove(id, menu, item)
                 ArrayGetArray(g_aBomb, 0, eBomb)
                 eBomb[BOMB_FLAGS] &= ~FLAG_ACTIVE
 
-                bombSetState(eBomb)
                 bombKill(eBomb[BOMB_ID])
                 bombRemove(0)
             }
@@ -889,7 +930,7 @@ public menuHandlerStatus(id, menu, item)
         case STATUS_CURRENT:
         {
             eBomb[BOMB_FLAGS] ^= FLAG_ACTIVE
-            bombSetState(eBomb)
+            iconColor(eBomb)
 
             client_print_color(id, id, "%L %L", id, "BOMB_CHAT_TAG", id, "BOMB_CHAT_STATUS_CURRENT",
             id, eBomb[BOMB_FLAGS] & FLAG_ACTIVE ? "BOMB_CHAT_ENABLED" : "BOMB_CHAT_DISABLED")
@@ -904,7 +945,7 @@ public menuHandlerStatus(id, menu, item)
             {
                 ArrayGetArray(g_aBomb, i, eBomb)
                 eBomb[BOMB_FLAGS] |= FLAG_ACTIVE
-                bombSetState(eBomb)
+                iconColor(eBomb)
 
                 ArraySetArray(g_aBomb, i, eBomb)
             }
@@ -919,7 +960,7 @@ public menuHandlerStatus(id, menu, item)
             {
                 ArrayGetArray(g_aBomb, i, eBomb)
                 eBomb[BOMB_FLAGS] &= ~FLAG_ACTIVE
-                bombSetState(eBomb)
+                iconColor(eBomb)
 
                 ArraySetArray(g_aBomb, i, eBomb)
             }
@@ -1068,9 +1109,7 @@ public menuHandlerScale(id, menu, item)
             g_ePlayerData[id][PDATA_BOMB_GHOST] = 0
 
             eBomb[BOMB_FLAGS] |= FLAG_ACTIVE
-            bombSetSeq(eBomb[BOMB_ID])
             bombSetSize(eBomb)
-            bombSetState(eBomb)
             ArraySetArray(g_aBomb, iItem, eBomb)
 
             client_print_color(id, id, "%L %L", id, "BOMB_CHAT_TAG", id, "BOMB_CHAT_CREATE_NEW")
@@ -1129,14 +1168,17 @@ public bombTask()
     }
 }
 
-public bombCreate(id)
+public bombCreate(id, iItem)
 {
-    new iEnt = engfunc(EngFunc_CreateNamedEntity, engfunc(EngFunc_AllocString, "info_target"))
+    new iEnt = engfunc(EngFunc_CreateNamedEntity, engfunc(EngFunc_AllocString, "func_bomb_target"))
     if ( !pev_valid(iEnt) )
         return
 
     new eBomb[BOMB]
+    ArrayGetArray(g_aBombConfig, iItem, eBomb)
+
     eBomb[BOMB_ID] = iEnt
+    eBomb[BOMB_ITEM] = iItem
     eBomb[BOMB_SCALE][0] = eBomb[BOMB_SCALE][1] = eBomb[BOMB_SCALE][2] = SIZE_BASE
     if ( id )
     {
@@ -1155,7 +1197,6 @@ public bombCreate(id)
     dllfunc(DLLFunc_Spawn, iEnt)
     set_pev(iEnt, pev_solid, SOLID_NOT)
     set_pev(iEnt, pev_movetype, MOVETYPE_FLY)
-    engfunc(EngFunc_SetModel, iEnt, g_eSettings[SETTING_DEFAULT_MODEL])
 
     ArrayPushArray(g_aBomb, eBomb)
     if ( ++ g_iBomb == 1 )
@@ -1168,18 +1209,18 @@ stock iconCreate(eBomb[BOMB], Float:fOrigin[3])
     if ( !pev_valid(iEnt) )
         return 0
 
-    new iColor[3]
-    if ( eBomb[BOMB_FLAGS] & FLAG_ACTIVE )    { iColor[0] = 0;      iColor[1] = 255; iColor[2] = 0; }
-    else                                      { iColor[0] = 255;    iColor[1] = 0;   iColor[2] = 0; }
-
+    eBomb[BOMB_ICON] = iEnt
     set_pev(iEnt, pev_impulse, BOMB_KEY)
     set_pev(iEnt, pev_classname, g_szCN)
     set_pev(iEnt, pev_origin, fOrigin)
-    engfunc(EngFunc_SetModel, iEnt, g_eSettings[SETTING_DEFAULT_ICON_SPRITE])
+    engfunc(EngFunc_SetModel, iEnt, g_eSettings[SETTING_DEFAULT_SPRITE_ICON])
     dllfunc(DLLFunc_Spawn, iEnt)
 
+    iconColor(eBomb)
+    set_pev(iEnt, pev_renderfx, kRenderFxNone)
+    set_pev(iEnt, pev_rendermode, kRenderTransAdd)
+    set_pev(iEnt, pev_renderamt, eBomb[BOMB_FLAGS] & FLAG_ICON ? g_eSettings[SETTING_DEFAULT_ICON_ALPHA] : 0.0)
     set_pev(iEnt, pev_scale, g_eSettings[SETTING_DEFAULT_ICON_SCALE])
-    setEntityRend
 
     return iEnt
 }
@@ -1190,10 +1231,7 @@ stock bombRemove(iItem)
     ArrayDeleteItem(g_aBomb, iItem)
 
     if ( -- g_iBomb == 0 )
-    {
-        DisableBomb()
         remove_task(BOMB_KEY)
-    }
 
     for ( new i = iItem; i < g_iBomb; i ++ )
     {
@@ -1215,6 +1253,7 @@ public saveData(id)
     if ( !iFile )
         return PLUGIN_HANDLED
 
+    bombTerminate()
     for ( new i = 0; i < g_iBomb; i ++ )
     {
         ArrayGetArray(g_aBomb, i, eBomb)
@@ -1346,13 +1385,13 @@ stock loadDataBomb(Float:fCorners[24], Float:fScale[3], Float:fOrigin[3], iItem,
 
     set_pev(eBomb[BOMB_ID], pev_origin, fOrigin)
     bombSetBox(eBomb)
-    bombSetActive(eBomb)
+    bombSetSize(eBomb)
     ArraySetArray(g_aBomb, iCount, eBomb)
 }
 
 public bombNoClip(id)
 {
-    set_user_noclip(id, !get_user_noclip(id))
+    set_pev(id, pev_movetype, pev(id, pev_movetype) == MOVETYPE_NOCLIP ? MOVETYPE_WALK : MOVETYPE_NOCLIP)
 
     bombSound(id, SOUND_MENU_NAV)
     bombMenu(id, MENU_ROOT)
@@ -1360,7 +1399,7 @@ public bombNoClip(id)
 
 public bombGodMode(id)
 {
-    set_user_godmode(id, !get_user_godmode(id))
+    set_pev(id, pev_takedamage, pev(id, pev_takedamage) == DAMAGE_NO ? DAMAGE_AIM : DAMAGE_NO)
 
     bombSound(id, SOUND_MENU_NAV)
     bombMenu(id, MENU_ROOT)
@@ -1444,8 +1483,9 @@ public fwdPreThink(id)
     if ( !is_user_alive(id) )
         return HAM_IGNORED
 
-    new iButton
+    new iButton, Float:fCurrentTime
     iButton = pev(id, pev_button)
+    fCurrentTime = get_gametime()
 
     if ( g_ePlayerData[id][PDATA_BOMB_GHOST] )
     {
@@ -1465,6 +1505,7 @@ public fwdPreThink(id)
             }
         }
 
+        set_pdata_float(id, PDATA_NEXT_ATTACK, fCurrentTime + 0.1, XO_CBASEPLAYER, XO_CBASEPLAYER)
         iButton &= ~(IN_ATTACK | IN_ATTACK2)
         set_pev(id, pev_button, iButton)
     }
@@ -1483,13 +1524,13 @@ public iconDraw(id, iState)
     message_end()
 }
 
-public iconColor(iEnt, bool:bActive)
+public iconColor(eBomb[BOMB])
 {
-    new iColor[3]
-    if ( eBomb[BOMB_FLAGS] & FLAG_ACTIVE )    { iColor[0] = 0;      iColor[1] = 255; iColor[2] = 0; }
-    else                                      { iColor[0] = 255;    iColor[1] = 0;   iColor[2] = 0; }
+    new Float:fRenderColor[3]
+    if ( eBomb[BOMB_FLAGS] & FLAG_ACTIVE )    { fRenderColor[0] = 0.0;      fRenderColor[1] = 255.0; fRenderColor[2] = 0.0; }
+    else                                      { fRenderColor[0] = 255.0;    fRenderColor[1] = 0.0;   fRenderColor[2] = 0.0; }
 
-    entitySetRendering(iEnt, kRenderFxNone, iColor[0], iColor[1], iColor[2], kRenderTransAdd, g_eSettings[SETTING_DEFAULT_ICON_ALPHA])
+    set_pev(eBomb[BOMB_ICON], pev_rendercolor, fRenderColor)
 }
 
 stock iconRefresh()
@@ -1659,16 +1700,6 @@ stock bombSetOffset(eBomb[BOMB])
     }
 }
 
-stock bombSetActive(eBomb[BOMB])
-{
-    set_pev(eBomb[BOMB_ID], pev_solid, SOLID_TRIGGER)
-    set_pev(eBomb[BOMB_ID], pev_movetype, MOVETYPE_NONE)
-    if ( eBomb[BOMB_FLAGS] & FLAG_ICON )
-        eBomb[BOMB_ICON] = iconCreate(eBomb, eBomb[BOMB_ORIGIN])
-
-    engfunc(EngFunc_SetSize, eBomb[BOMB_ID], eBomb[BOMB_MINS], eBomb[BOMB_MAXS])
-}
-
 stock bombBeam(eBomb[BOMB])
 {
     new Float:fCorners[8][3]
@@ -1768,76 +1799,43 @@ stock bool:isBombMap()
     return engfunc(EngFunc_FindEntityByString, -1, "classname", "func_bomb_target") > 0
 }
 
-stock bombSetSeq(iEnt)
-{
-    set_pev(iEnt, pev_sequence, 0)
-    set_pev(iEnt, pev_frame, 0.0)
-    set_pev(iEnt, pev_framerate, 1.0)
-    set_pev(iEnt, pev_animtime, get_gametime())
-}
-
 stock bombSetSize(eBomb[BOMB])
 {
     bombSelect(eBomb, TARGET_HIDE)
     engfunc(EngFunc_SetOrigin, eBomb[BOMB_ID], eBomb[BOMB_ORIGIN])
-    set_pev(eBomb[BOMB_ID], pev_solid, eBomb[BOMB_FLAGS] & FLAG_ACTIVE ? SOLID_BBOX : SOLID_NOT)
+    set_pev(eBomb[BOMB_ID], pev_solid, eBomb[BOMB_FLAGS] & FLAG_ACTIVE ? SOLID_TRIGGER : SOLID_NOT)
     set_pev(eBomb[BOMB_ID], pev_movetype, MOVETYPE_NONE)
 
     engfunc(EngFunc_SetSize, eBomb[BOMB_ID], eBomb[BOMB_MINS], eBomb[BOMB_MAXS])
-    bombCreateTrigger(eBomb)
-}
-
-stock bombSetState(eBomb[BOMB])
-{
-    if ( eBomb[BOMB_FLAGS] & FLAG_ACTIVE )
-    {
-        set_pev(eBomb[BOMB_ID], pev_solid, SOLID_BBOX)
-        set_pev(eBomb[BOMB_TRIGGER], pev_solid, SOLID_TRIGGER)
-    }
-    else
-    {
-        set_pev(eBomb[BOMB_ID], pev_solid, SOLID_NOT)
-        set_pev(eBomb[BOMB_TRIGGER], pev_solid, SOLID_NOT)
-    }
+    iconCreate(eBomb, eBomb[BOMB_ORIGIN])
 }
 
 stock bombSelect(eBomb[BOMB], iAction)
 {
-    new iRender, iRenderFx, iRenderColor[3], iRenderAmt
+    new Float:fRenderAmt
 
-    iRenderFx = kRenderFxNone
     if ( iAction == TARGET_SELECT )
     {
-        if ( eBomb[BOMB_FLAGS] & FLAG_ACTIVE )    { iRenderColor[0] = 0;      iRenderColor[1] = 255; iRenderColor[2] = 0; }
-        else                                      { iRenderColor[0] = 255;    iRenderColor[1] = 0;   iRenderColor[2] = 0; }
-
-        iRender = kRenderTransColor
-        iRenderFx = kRenderFxGlowShell
-        iRenderAmt = 16
-
+        iconColor(eBomb)
+        fRenderAmt = g_eSettings[SETTING_DEFAULT_ICON_ALPHA]
         eBomb[BOMB_FLAGS] |= FLAG_SELECT
     }
     else if ( iAction == TARGET_GHOST )
     {
-        iRender = kRenderTransAlpha
-        iRenderAmt = BOMB_GHOST_ALPHA
+        fRenderAmt = g_eSettings[SETTING_DEFAULT_ICON_ALPHA]
     }
     else if ( iAction == TARGET_HIDE )
     {
-        iRender = kRenderTransAlpha
-        iRenderAmt = 0
-
+        fRenderAmt = eBomb[BOMB_FLAGS] & FLAG_ICON ? g_eSettings[SETTING_DEFAULT_ICON_ALPHA] : 0.0
         eBomb[BOMB_FLAGS] &= ~FLAG_SELECT
     }
     else if ( iAction == TARGET_CLEAR )
     {
-        iRender = kRenderNormal
-        iRenderAmt = 255
-
+        fRenderAmt = g_eSettings[SETTING_DEFAULT_ICON_ALPHA]
         eBomb[BOMB_FLAGS] &= ~FLAG_SELECT
     }
 
-    entitySetRendering(eBomb[BOMB_ID], iRenderFx, iRenderColor[0], iRenderColor[1], iRenderColor[2], iRender, iRenderAmt)
+    set_pev(eBomb[BOMB_ICON], pev_renderamt, fRenderAmt)
 }
 
 stock bombSound(iEnt, iSound, iChan = CHAN_ITEM, bool:bPlayer = true, iFlags = 0, iPitch = PITCH_NORM)
@@ -2042,17 +2040,4 @@ stock LogConfigError(const iLine, const szText[], any:...)
     vformat(szError, charsmax(szError), szText, 3)
 
     log_to_file(ERROR_FILE, "^nLine %d: %s", iLine, szError)
-}
-
-stock entitySetRendering(iEntity, iRenderFx, iRed, iGreen, iBlue, iRenderMode, iRenderAmt)
-{
-    new Float:fRenderColor[3]
-    fRenderColor[0] = float(iRed)
-    fRenderColor[1] = float(iGreen)
-    fRenderColor[2] = float(iBlue)
-
-    set_pev(iEntity, pev_renderfx, iRenderFx)
-    set_pev(iEntity, pev_rendercolor, fRenderColor)
-    set_pev(iEntity, pev_rendermode, iRenderMode)
-    set_pev(iEntity, pev_renderamt, float(iRenderAmt))
 }
