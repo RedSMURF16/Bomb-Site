@@ -1,5 +1,5 @@
 [en] -- RedSMURF
-BOMB_CHAT_TAG                                = ^4[Bomb Site]^1
+BOMB_CHAT_TAG                                = ^4[BOMB SITE]^1
 BOMB_CHAT_LIMIT                              = You've reached the maximum number of Bomb Sites ^4%d
 BOMB_CHAT_NO_BOMB                            = There are no Bomb Sites available
 BOMB_CHAT_CREATE_NEW                         = ^3Bomb Site ^1created
