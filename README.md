@@ -1,7 +1,7 @@
 <h1 align="center">Bomb Site</h1>
 
 <p align="center">
-  <a href="https://www.youtube.com/watch?v=0xiqKXp8d5c"><img src="https://img.youtube.com/vi/0xiqKXp8d5c/maxresdefault.jpg" alt="Watch on YouTube" width="600"></a>
+  <img src="images/demo.gif" alt="Bomb Site">
 </p>
 
 ## 📝 Description
