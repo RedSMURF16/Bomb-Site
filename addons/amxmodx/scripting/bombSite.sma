@@ -1201,7 +1201,7 @@ public bombCreate(id, iItem)
         set_task(g_eSettings[SETTING_BOMB_TASK], "bombTask", BOMB_KEY, .flags = "b")
 }
 
-stock iconCreate(eBomb[BOMB], Float:fOrigin[3])
+stock iconCreate(eBomb[BOMB])
 {
     new iEnt = engfunc(EngFunc_CreateNamedEntity, engfunc(EngFunc_AllocString, "env_sprite"))
     if ( !pev_valid(iEnt) )
@@ -1210,7 +1210,7 @@ stock iconCreate(eBomb[BOMB], Float:fOrigin[3])
     eBomb[BOMB_ICON] = iEnt
     set_pev(iEnt, pev_impulse, BOMB_KEY)
     set_pev(iEnt, pev_classname, g_szCN)
-    set_pev(iEnt, pev_origin, fOrigin)
+    set_pev(iEnt, pev_origin, eBomb[BOMB_ORIGIN])
     engfunc(EngFunc_SetModel, iEnt, g_eSettings[SETTING_DEFAULT_SPRITE_ICON])
     dllfunc(DLLFunc_Spawn, iEnt)
 
@@ -1783,7 +1783,7 @@ stock bombSetSize(eBomb[BOMB])
     set_pev(eBomb[BOMB_ID], pev_movetype, MOVETYPE_NONE)
 
     engfunc(EngFunc_SetSize, eBomb[BOMB_ID], eBomb[BOMB_MINS], eBomb[BOMB_MAXS])
-    iconCreate(eBomb, eBomb[BOMB_ORIGIN])
+    iconCreate(eBomb)
 }
 
 stock bombSelect(eBomb[BOMB], iAction)
